@@ -1,0 +1,35 @@
+/* the naturalist's desk — app chrome lives in deep ink, slides are the paper */
+
+:root {
+  --cream: #f4eedd;
+  --ink: #2e2a1f;
+  --desk: #211e16; /* darker than slide ink — the desk under the journal */
+  --desk-2: #2a261b;
+  --faded: #8a7c5c;
+  --accent: #b9a87c;
+  --serif: 'EB Garamond', 'Iowan Old Style', Georgia, serif;
+  --mono: 'IBM Plex Mono', 'SF Mono', Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--desk);
+  color: var(--cream);
+  font-family: var(--serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--ink);
+}
