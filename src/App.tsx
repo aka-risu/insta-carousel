@@ -9,6 +9,7 @@ import {
   elementDef,
   ensureElements,
   fromLegacyMarkdown,
+  importDesign,
   importOutline,
   microLabels,
   newSlide,
@@ -296,6 +297,22 @@ export default function App() {
 
   // ── import / export ────────────────────────────────────────
   const runImport = useCallback(() => {
+    const text = importText.trim()
+    // a generated design schema (JSON) replaces the whole project; a plain
+    // outline just replaces the slides
+    if (text.startsWith('{') || text.startsWith('[')) {
+      try {
+        const p = importDesign(importText)
+        setProject(p)
+        setSelectedId(p.slides[0]?.id ?? null)
+        setCurrentDesignId(null)
+        setImporting(false)
+        setImportText('')
+      } catch (err) {
+        alert('could not read design json: ' + (err instanceof Error ? err.message : String(err)))
+      }
+      return
+    }
     const { title, slides } = importOutline(importText)
     if (slides.length === 0) return
     setProject((p) => ({ ...p, title: title || p.title, slides }))
@@ -758,10 +775,11 @@ export default function App() {
       {importing && (
         <div className="overlay" onClick={() => setImporting(false)}>
           <div className="overlay-card" onClick={(e) => e.stopPropagation()}>
-            <label className="pane-label">paste your outline</label>
+            <label className="pane-label">paste outline or design json</label>
             <p className="type-about">
-              works with «Slide 1 — …» lines or plain paragraphs separated by blank
-              lines. first slide becomes the hook, the last one the closing slide.
+              plain outline («Slide 1 — …» lines or blank-line paragraphs) builds
+              hook → text → cta. or paste a generated design json (starts with
+              {'{'}) to drop in a full carousel — theme, slide types, sizes and all.
             </p>
             <textarea
               autoFocus

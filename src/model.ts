@@ -305,6 +305,57 @@ export function fitSize(text: string, base: number, min: number): number {
   return Math.max(min, Math.round(size))
 }
 
+// ── design-schema import (JSON) ──────────────────────────────
+// the format the antara-carousel skill emits: a friendly object that maps onto
+// the full model. ids/elements are derived, so the author only supplies
+// content fields. see .claude/skills/antara-carousel for the spec.
+const CONTENT_KEYS: ElementKey[] = [
+  'text',
+  'sub',
+  'stat',
+  'def',
+  'attribution',
+  'image',
+  'annotations',
+]
+
+export function importDesign(raw: string): Project {
+  const data = JSON.parse(raw)
+  const arr: unknown = Array.isArray(data) ? data : data?.slides
+  if (!Array.isArray(arr) || arr.length === 0)
+    throw new Error('design json needs a non-empty "slides" array')
+
+  const slides = arr.map((d: Record<string, unknown>) => {
+    const t = String(d.type ?? 'text') as SlideType
+    const s = newSlide(SLIDE_TYPE_ORDER.includes(t) ? t : 'text')
+    for (const k of CONTENT_KEYS) if (typeof d[k] === 'string') s[k] = d[k] as string
+
+    if (Array.isArray(d.elements)) {
+      s.elements = (d.elements as string[]).filter((k): k is ElementKey =>
+        ELEMENT_ORDER.includes(k as ElementKey),
+      )
+    } else {
+      // keep the type's default elements, then add any extra populated fields
+      for (const k of ELEMENT_ORDER) if (s[k] && !s.elements.includes(k)) s.elements.push(k)
+    }
+
+    if (d.sizes && typeof d.sizes === 'object') {
+      s.sizes = {}
+      for (const [k, v] of Object.entries(d.sizes as Record<string, unknown>))
+        if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'number')
+          s.sizes[k as ElementKey] = v
+    }
+    if (typeof d.background === 'string') s.background = d.background
+    return s
+  })
+
+  return {
+    title: typeof data.title === 'string' ? data.title : '',
+    themeId: String(data.theme ?? data.themeId ?? 'journal'),
+    slides,
+  }
+}
+
 // ── outline import ───────────────────────────────────────────
 // accepts the loose format:
 //   why you sigh when you're stressed        ← title (before first marker)
