@@ -11,6 +11,7 @@ import parch3 from './assets/backgrounds/parch3.png'
 import parch4 from './assets/backgrounds/parch4.png'
 import parch5 from './assets/backgrounds/parch5.png'
 import parch6 from './assets/backgrounds/parch6.png'
+import tide1 from './assets/backgrounds/tide1.png'
 
 export const layout = {
   slideW: 1080,
@@ -249,8 +250,161 @@ export const THEMES: Theme[] = [
       cta: 'fair winds',
     },
   },
+  {
+    id: 'tide',
+    name: 'tide',
+    // a single soft watercolor plate — sand, coral and sea-foam bleeding across
+    // cream paper. the wash carries the texture, so the grain layer stays empty.
+    base: {
+      bg: '#F1E8D8',
+      fg: '#2B2720',
+      dim: '#8B7B5E',
+      accent: '#C2714A',
+      texture: 'none',
+      mat: '#F5EFE2',
+    },
+    inverted: {
+      bg: '#243E3A',
+      fg: '#F1E8D8',
+      dim: '#7DA39B',
+      accent: '#D98E63',
+      texture: 'none',
+      mat: '#F5EFE2',
+    },
+    backgrounds: [{ id: 'tide1', name: 'low tide', url: tide1 }],
+    labels: {
+      hook: (no) => `tide · no. ${no}`,
+      section: (n) => `mark ${n}`,
+      diagram: (n) => `plate ${n}`,
+      quote: 'marginalia',
+      cta: 'slack tide',
+    },
+  },
 ]
 
 export function themeById(id: string): Theme {
   return THEMES.find((t) => t.id === id) ?? THEMES[0]
+}
+
+// ── custom theme ─────────────────────────────────────────────
+// a single user-defined theme: bring your own background image and text colors.
+// stored separately from the built-in THEMES and turned into a Theme on demand
+// when project.themeId === 'custom'.
+
+export interface CustomThemeData {
+  bg: string // background image as a data url; '' = a plain colored theme
+  paper: string // page color behind the text (shows when there's no image)
+  fg: string // primary text
+  dim: string // chrome labels, rules, secondary text
+  accent: string // pen circle, underline, highlighter marks
+}
+
+export const DEFAULT_CUSTOM: CustomThemeData = {
+  bg: '',
+  paper: '#F1E8D8',
+  fg: '#2B2720',
+  dim: '#8B7B5E',
+  accent: '#C2714A',
+}
+
+export function buildCustomTheme(c: CustomThemeData): Theme {
+  const palette: Palette = {
+    bg: c.paper,
+    fg: c.fg,
+    dim: c.dim,
+    accent: c.accent,
+    texture: 'none',
+    mat: c.paper,
+  }
+  return {
+    id: 'custom',
+    name: 'custom',
+    base: palette,
+    // image-backed themes don't truly invert — the plate is the same on the cta
+    inverted: palette,
+    backgrounds: c.bg ? [{ id: 'custom-bg', name: 'your image', url: c.bg }] : undefined,
+    labels: {
+      hook: (no) => `no. ${no}`,
+      section: (n) => `note ${n}`,
+      diagram: (n) => `plate ${n}`,
+      quote: 'marginalia',
+      cta: 'the end',
+    },
+  }
+}
+
+// ── auto colors from an image ────────────────────────────────
+// sample a background to suggest readable text + accent colors. a heuristic
+// starting point the user can nudge, not a guarantee — busy images are hard.
+
+type RGB = [number, number, number]
+
+function clamp8(n: number): number {
+  return Math.max(0, Math.min(255, Math.round(n)))
+}
+function toHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map((v) => clamp8(v).toString(16).padStart(2, '0')).join('')
+}
+function mix(a: RGB, b: RGB, t: number): RGB {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+}
+
+export function sampleTheme(dataUrl: string): Promise<Partial<CustomThemeData>> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const W = 72
+      const H = 90 // 4:5, the slide ratio
+      const canvas = document.createElement('canvas')
+      canvas.width = W
+      canvas.height = H
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, W, H)
+      const { data } = ctx.getImageData(0, 0, W, H)
+
+      let sr = 0
+      let sg = 0
+      let sb = 0
+      let n = 0
+      let accent: RGB | null = null
+      let bestScore = 0
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+        sr += r
+        sg += g
+        sb += b
+        n++
+        const max = Math.max(r, g, b)
+        const min = Math.min(r, g, b)
+        const sat = max === 0 ? 0 : (max - min) / max
+        const lum = (max + min) / 2 / 255
+        // favour vivid, mid-tone pixels for the accent
+        const score = sat * (1 - Math.abs(lum - 0.5) * 1.4)
+        if (score > bestScore) {
+          bestScore = score
+          accent = [r, g, b]
+        }
+      }
+
+      const avg: RGB = [sr / n, sg / n, sb / n]
+      const avgLum = (0.2126 * avg[0] + 0.7152 * avg[1] + 0.0722 * avg[2]) / 255
+      const light = avgLum > 0.55
+
+      const fg: RGB = light ? [38, 34, 27] : [244, 239, 227]
+      const paper = mix(avg, light ? [255, 255, 255] : [20, 18, 14], 0.18)
+      const dim = mix(fg, paper, 0.42)
+      const acc: RGB = bestScore > 0.12 && accent ? accent : mix(fg, paper, 0.2)
+
+      resolve({
+        paper: toHex(paper[0], paper[1], paper[2]),
+        fg: toHex(fg[0], fg[1], fg[2]),
+        dim: toHex(dim[0], dim[1], dim[2]),
+        accent: toHex(acc[0], acc[1], acc[2]),
+      })
+    }
+    img.onerror = () => reject(new Error('could not load image for sampling'))
+    img.src = dataUrl
+  })
 }

@@ -428,6 +428,64 @@
   color: var(--faded);
 }
 
+/* ── custom theme ────────────────────────────────────────── */
+
+.custom-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(185, 168, 124, 0.25);
+}
+
+.custom-bg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.custom-bg-preview {
+  width: 52px;
+  height: 65px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid rgba(185, 168, 124, 0.4);
+}
+
+.color-rows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--cream);
+  cursor: pointer;
+}
+
+.color-row input[type='color'] {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(185, 168, 124, 0.4);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.color-row code {
+  font-size: 11px;
+  color: var(--faded);
+  text-transform: uppercase;
+}
+
 /* ── asset library ───────────────────────────────────────── */
 
 .asset-drop {

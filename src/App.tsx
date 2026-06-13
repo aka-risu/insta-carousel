@@ -16,7 +16,8 @@ import {
   referencedAssets,
   retype,
 } from './model'
-import { THEMES, themeById, layout } from './tokens'
+import { THEMES, themeById, layout, buildCustomTheme, sampleTheme, DEFAULT_CUSTOM } from './tokens'
+import type { CustomThemeData } from './tokens'
 import { Slide } from './slides/Slide'
 import { exportCarousel } from './exporter'
 import { SEED_PROJECT } from './seed'
@@ -31,6 +32,7 @@ const BUILTIN_ASSETS: Record<string, string> = {
 const PROJECT_KEY = 'antara-carousel-project' // the live working draft
 const DESIGNS_KEY = 'antara-carousel-designs' // the saved library
 const CURRENT_KEY = 'antara-carousel-current' // id of the loaded saved design
+const CUSTOM_KEY = 'antara-carousel-custom' // the user's custom theme (image + colors)
 const LEGACY_KEY = 'antara-carousel-draft'
 const PREVIEW_W = 340
 const SCALE = PREVIEW_W / layout.slideW
@@ -72,6 +74,16 @@ const timeAgo = (ms: number): string => {
   return `${Math.round(h / 24)}d ago`
 }
 
+function loadCustom(): CustomThemeData {
+  try {
+    const raw = localStorage.getItem(CUSTOM_KEY)
+    if (raw) return { ...DEFAULT_CUSTOM, ...(JSON.parse(raw) as Partial<CustomThemeData>) }
+  } catch {
+    // corrupted — fall back to the default custom theme
+  }
+  return DEFAULT_CUSTOM
+}
+
 function loadProject(): Project {
   try {
     const raw = localStorage.getItem(PROJECT_KEY)
@@ -110,7 +122,9 @@ export default function App() {
   )
   const [showDesigns, setShowDesigns] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
+  const [custom, setCustom] = useState<CustomThemeData>(loadCustom)
   const fileInput = useRef<HTMLInputElement>(null)
+  const customBgInput = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -126,7 +140,14 @@ export default function App() {
     else localStorage.removeItem(CURRENT_KEY)
   }, [currentDesignId])
 
-  const theme = themeById(project.themeId)
+  useEffect(() => {
+    localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom))
+  }, [custom])
+
+  const theme = useMemo(
+    () => (project.themeId === 'custom' ? buildCustomTheme(custom) : themeById(project.themeId)),
+    [project.themeId, custom],
+  )
   const labels = useMemo(() => microLabels(project, theme), [project, theme])
   const refs = useMemo(() => referencedAssets(project), [project])
   const missing = refs.filter((name) => !assets[name])
@@ -295,6 +316,35 @@ export default function App() {
     })
   }, [])
 
+  // ── custom theme ───────────────────────────────────────────
+  // store the background as a data url (not an object url) so it survives a
+  // reload, then sample it to pre-fill the text colors.
+  const setCustomBg = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) return
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const url = String(reader.result)
+      let sampled: Partial<CustomThemeData> = {}
+      try {
+        sampled = await sampleTheme(url)
+      } catch {
+        // sampling failed — keep the current colors, just set the image
+      }
+      setCustom((c) => ({ ...c, ...sampled, bg: url }))
+    }
+    reader.readAsDataURL(file)
+  }, [])
+
+  const autoColors = useCallback(async () => {
+    if (!custom.bg) return
+    try {
+      const sampled = await sampleTheme(custom.bg)
+      setCustom((c) => ({ ...c, ...sampled }))
+    } catch {
+      alert('could not read colors from that image')
+    }
+  }, [custom.bg])
+
   // ── import / export ────────────────────────────────────────
   const runImport = useCallback(() => {
     const text = importText.trim()
@@ -424,6 +474,7 @@ export default function App() {
               theme · {t.name}
             </option>
           ))}
+          <option value="custom">theme · custom</option>
         </select>
         <button className="ghost-btn" onClick={() => setShowDesigns(true)}>
           designs{designs.length ? ` (${designs.length})` : ''}
@@ -481,6 +532,67 @@ export default function App() {
 
         {/* ── editor ── */}
         <section className="editor-pane">
+          {project.themeId === 'custom' && (
+            <div className="custom-theme">
+              <label className="pane-label">custom theme</label>
+              <div
+                className="asset-drop"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (e.dataTransfer.files[0]) setCustomBg(e.dataTransfer.files[0])
+                }}
+                onClick={() => customBgInput.current?.click()}
+              >
+                {custom.bg ? 'drop a new background, or click to replace' : 'drop a background image, or click to pick'}
+                <input
+                  ref={customBgInput}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) setCustomBg(e.target.files[0])
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+
+              {custom.bg && (
+                <div className="custom-bg-row">
+                  <img className="custom-bg-preview" src={custom.bg} alt="custom background" />
+                  <button className="ghost-btn" onClick={autoColors}>
+                    auto colors from image
+                  </button>
+                  <button className="ghost-btn" onClick={() => setCustom((c) => ({ ...c, bg: '' }))}>
+                    remove image
+                  </button>
+                </div>
+              )}
+
+              <div className="color-rows">
+                {([
+                  ['fg', 'text'],
+                  ['dim', 'secondary'],
+                  ['accent', 'accent'],
+                  ['paper', 'paper'],
+                ] as const).map(([key, label]) => (
+                  <label key={key} className="color-row">
+                    <input
+                      type="color"
+                      value={custom[key]}
+                      onChange={(e) => setCustom((c) => ({ ...c, [key]: e.target.value }))}
+                    />
+                    <span>{label}</span>
+                    <code>{custom[key]}</code>
+                  </label>
+                ))}
+              </div>
+              <span className="field-hint">
+                upload an image and colors auto-fill for contrast — nudge any of them. with no image,
+                this is just a colored paper theme. saved across reloads.
+              </span>
+            </div>
+          )}
           {selected ? (
             <>
               <label className="pane-label">
