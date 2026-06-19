@@ -71,7 +71,9 @@ export function Selectable({
       style={{
         ...layoutStyle,
         cursor: interactive ? (free ? 'move' : 'pointer') : undefined,
-        outline: selected ? `5px solid ${SELECT_COLOR}` : '2px dashed transparent',
+        // no selection outline on the canvas — the inspector already shows
+        // which element is selected, so the box highlight is just noise
+        outline: 'none',
         outlineOffset: 12,
         borderRadius: 4,
         touchAction: free ? 'none' : undefined,
