@@ -42,6 +42,7 @@ import {
 import type { CustomThemeData, ColorOverrides } from './tokens'
 import { Slide } from './slides/Slide'
 import { exportCarousel } from './exporter'
+import { CarouselPanel } from './editor/CarouselPanel'
 import { SEED_PROJECT, templateProject } from './seed'
 import sealPlateUrl from './assets/seal-plate.jpg'
 import './App.css'
@@ -178,8 +179,6 @@ export default function App() {
   const [showNewPrompt, setShowNewPrompt] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [custom, setCustom] = useState<CustomThemeData>(loadCustom)
-  const fileInput = useRef<HTMLInputElement>(null)
-  const customBgInput = useRef<HTMLInputElement>(null)
   const bgInput = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
@@ -839,106 +838,24 @@ export default function App() {
 
         {/* ── editor ── */}
         <section className="editor-pane">
-          {project.themeId === 'custom' && (
-            <div className="custom-theme">
-              <label className="pane-label">custom theme</label>
-              <div
-                className="asset-drop"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  if (e.dataTransfer.files[0]) setCustomBg(e.dataTransfer.files[0])
-                }}
-                onClick={() => customBgInput.current?.click()}
-              >
-                {custom.bg ? 'drop a new background, or click to replace' : 'drop a background image, or click to pick'}
-                <input
-                  ref={customBgInput}
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) setCustomBg(e.target.files[0])
-                    e.target.value = ''
-                  }}
-                />
-              </div>
-
-              {custom.bg && (
-                <div className="custom-bg-row">
-                  <img className="custom-bg-preview" src={custom.bg} alt="custom background" />
-                  <button className="ghost-btn" onClick={autoColors}>
-                    auto colors from image
-                  </button>
-                  <button className="ghost-btn" onClick={() => setCustom((c) => ({ ...c, bg: '' }))}>
-                    remove image
-                  </button>
-                </div>
-              )}
-
-              <div className="color-rows">
-                {([
-                  ['fg', 'text'],
-                  ['dim', 'secondary'],
-                  ['accent', 'accent'],
-                  ['paper', 'paper'],
-                ] as const).map(([key, label]) => (
-                  <label key={key} className="color-row">
-                    <input
-                      type="color"
-                      value={custom[key]}
-                      onChange={(e) => setCustom((c) => ({ ...c, [key]: e.target.value }))}
-                    />
-                    <span>{label}</span>
-                    <code>{custom[key]}</code>
-                  </label>
-                ))}
-              </div>
-              <span className="field-hint">
-                upload an image and colors auto-fill for contrast — nudge any of them. with no image,
-                this is just a colored paper theme. saved across reloads.
-              </span>
-            </div>
-          )}
-
-          {project.themeId !== 'custom' && (
-            <div className="custom-theme">
-              <label className="pane-label">text colors</label>
-              <div className="color-rows">
-                {([
-                  ['fg', 'text'],
-                  ['dim', 'secondary'],
-                  ['accent', 'accent'],
-                ] as const).map(([key, label]) => {
-                  const overridden = project.colors?.[key] != null
-                  return (
-                    <label key={key} className="color-row">
-                      <input
-                        type="color"
-                        value={project.colors?.[key] || theme.base[key]}
-                        onChange={(e) => setProjectColor(key, e.target.value)}
-                      />
-                      <span>{label}</span>
-                      <code>{overridden ? project.colors?.[key] : 'theme'}</code>
-                      {overridden && (
-                        <button
-                          className="field-remove"
-                          title={`reset ${label} to the theme color`}
-                          onClick={() => setProjectColor(key, undefined)}
-                        >
-                          ×
-                        </button>
-                      )}
-                    </label>
-                  )
-                })}
-              </div>
-              <span className="field-hint">
-                recolor text, secondary chrome and marks across this whole carousel — on top of the
-                “{theme.name}” theme. leave as “theme” to keep its colors.
-              </span>
-            </div>
-          )}
+          <CarouselPanel
+            project={project}
+            theme={theme}
+            custom={custom}
+            setCustom={setCustom}
+            setCustomBg={setCustomBg}
+            autoColors={autoColors}
+            setProjectColor={setProjectColor}
+            assets={assets}
+            builtinAssets={BUILTIN_ASSETS}
+            userImages={userImages}
+            missing={missing}
+            dragging={dragging}
+            setDragging={setDragging}
+            storageFull={storageFull}
+            addFiles={addFiles}
+            removeAsset={removeAsset}
+          />
           {selected ? (
             <>
               <label className="pane-label">
@@ -1435,61 +1352,6 @@ export default function App() {
             <p className="empty-note">add a slide to start</p>
           )}
 
-          <label className="pane-label">assets</label>
-          {storageFull && (
-            <p className="field-hint" style={{ color: '#b0462f' }}>
-              ⚠ browser storage is full — new images stay for this session but won’t survive a
-              reload. remove unused images to free space.
-            </p>
-          )}
-          <div
-            className={`asset-drop ${dragging ? 'dragging' : ''}`}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragging(true)
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setDragging(false)
-              addFiles(e.dataTransfer.files)
-            }}
-            onClick={() => fileInput.current?.click()}
-          >
-            drop images here, or click to pick
-            <input
-              ref={fileInput}
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              onChange={(e) => {
-                if (e.target.files) addFiles(e.target.files)
-                e.target.value = ''
-              }}
-            />
-          </div>
-
-          {(Object.keys(assets).length > 0 || missing.length > 0) && (
-            <div className="asset-chips">
-              {Object.entries(assets).map(([name, url]) => (
-                <span key={name} className="chip" title={name}>
-                  <img src={url} alt="" />
-                  {name}
-                  {!BUILTIN_ASSETS[name] && (
-                    <button className="chip-x" onClick={() => removeAsset(name)} aria-label={`remove ${name}`}>
-                      ×
-                    </button>
-                  )}
-                </span>
-              ))}
-              {missing.map((name) => (
-                <span key={name} className="chip chip-missing" title={`${name} not uploaded`}>
-                  ⚠ {name}
-                </span>
-              ))}
-            </div>
-          )}
         </section>
 
         {/* ── previews ── */}
