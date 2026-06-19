@@ -72,6 +72,30 @@ export interface Palette {
   mat: string // mount color behind image plates
 }
 
+// palette tokens a text-plate / overlay color may reference, so swatches track
+// the live theme instead of baking in a fixed hex
+const PALETTE_TOKENS: Record<string, keyof Palette> = {
+  paper: 'bg',
+  fg: 'fg',
+  dim: 'dim',
+  accent: 'accent',
+}
+
+// turn a stored color (hex or palette token) + optional opacity into a css color.
+// hex (#rgb / #rrggbb) gets an alpha appended; tokens resolve against the palette.
+export function resolveColor(color: string, p: Palette, opacity = 1): string {
+  const base = PALETTE_TOKENS[color] ? p[PALETTE_TOKENS[color]] : color
+  if (opacity >= 1) return base
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(base)
+  if (!m) return base
+  let hex = m[1]
+  if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('')
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, opacity))})`
+}
+
 // a full-bleed background plate (vintage sea chart) for image-backed themes
 export interface ChartBg {
   id: string

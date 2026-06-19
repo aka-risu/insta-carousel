@@ -2,12 +2,13 @@ import type { CSSProperties } from 'react'
 import type { SlideModel } from '../model'
 import { DEFAULT_IMAGE_FRAC, IMAGE_FRAC_RANGE } from '../model'
 import type { Theme, Palette } from '../tokens'
-import { layout, fonts } from '../tokens'
+import { layout, fonts, resolveColor } from '../tokens'
 import { AntaraWordmark } from './AntaraWordmark'
 import { ContentSlide } from './ContentSlide'
 import { DiagramSlide } from './DiagramSlide'
+import type { ElementSelection } from './Selectable'
 
-export interface SlideProps {
+export interface SlideProps extends ElementSelection {
   slide: SlideModel
   microLabel: string
   index: number
@@ -17,17 +18,42 @@ export interface SlideProps {
 }
 
 // the one slide component — used verbatim for both preview and export
-export function Slide({ slide, microLabel, index, total, theme, assets }: SlideProps) {
+export function Slide({
+  slide,
+  microLabel,
+  index,
+  total,
+  theme,
+  assets,
+  selectedElement,
+  onSelectElement,
+  onElementPointerDown,
+  onResizePointerDown,
+}: SlideProps) {
   // cta always renders in the theme's inverted palette
   const p: Palette = slide.type === 'cta' ? theme.inverted : theme.base
 
-  // image-backed themes: pick this slide's full-bleed plate (manual override,
-  // else cycle through the set by position so a carousel gets variety)
+  // background image: a per-slide image (any theme) wins; otherwise fall back to
+  // an image-backed theme's plate (manual override, else cycle by position)
   const charts = theme.backgrounds
-  const bgUrl =
+  const themeBgUrl =
     charts && charts.length
       ? (charts.find((c) => c.id === slide.background) ?? charts[index % charts.length]).url
       : undefined
+  const ownBgUrl = slide.bgImage ? assets[slide.bgImage] : undefined
+  const bgUrl = ownBgUrl ?? themeBgUrl
+
+  // optional tint/scrim over the background for legibility
+  const overlay = slide.overlay
+  const overlayBg = overlay
+    ? overlay.mode === 'wash'
+      ? resolveColor(overlay.color, p, overlay.opacity)
+      : `linear-gradient(${overlay.mode === 'top' ? 'to bottom' : 'to top'}, ${resolveColor(
+          overlay.color,
+          p,
+          overlay.opacity,
+        )}, ${resolveColor(overlay.color, p, 0)})`
+    : undefined
 
   // full-bleed image band: a slide's image pinned edge-to-edge to the top or
   // bottom. the band owns its region; the text + chrome shrink into the rest.
@@ -70,6 +96,14 @@ export function Slide({ slide, microLabel, index, total, theme, assets }: SlideP
             objectFit: 'cover',
             pointerEvents: 'none',
           }}
+        />
+      )}
+
+      {/* tint/scrim over the background for legibility */}
+      {overlayBg && (
+        <div
+          aria-hidden
+          style={{ position: 'absolute', inset: 0, background: overlayBg, pointerEvents: 'none' }}
         />
       )}
 
@@ -144,7 +178,15 @@ export function Slide({ slide, microLabel, index, total, theme, assets }: SlideP
 
       {/* archetype content — confined to the region the band leaves free */}
       <div style={{ position: 'absolute', top: contentTop, bottom: contentBottom, left: 0, right: 0 }}>
-        {renderType(slide, p, assets)}
+        {renderType(
+          slide,
+          p,
+          assets,
+          selectedElement,
+          onSelectElement,
+          onElementPointerDown,
+          onResizePointerDown,
+        )}
       </div>
 
       {/* chrome: footer — the antara wordmark, recolored to the palette */}
@@ -174,7 +216,27 @@ export function Slide({ slide, microLabel, index, total, theme, assets }: SlideP
   )
 }
 
-function renderType(slide: SlideModel, p: Palette, assets: Record<string, string>) {
-  if (slide.type === 'diagram') return <DiagramSlide slide={slide} p={p} assets={assets} />
-  return <ContentSlide slide={slide} p={p} assets={assets} />
+function renderType(
+  slide: SlideModel,
+  p: Palette,
+  assets: Record<string, string>,
+  selectedElement: SlideProps['selectedElement'],
+  onSelectElement: SlideProps['onSelectElement'],
+  onElementPointerDown: SlideProps['onElementPointerDown'],
+  onResizePointerDown: SlideProps['onResizePointerDown'],
+) {
+  const sel = { selectedElement, onSelectElement }
+  // free-layout drag/resize is content-slide only; diagrams keep their layout
+  if (slide.type === 'diagram')
+    return <DiagramSlide slide={slide} p={p} assets={assets} {...sel} />
+  return (
+    <ContentSlide
+      slide={slide}
+      p={p}
+      assets={assets}
+      {...sel}
+      onElementPointerDown={onElementPointerDown}
+      onResizePointerDown={onResizePointerDown}
+    />
+  )
 }

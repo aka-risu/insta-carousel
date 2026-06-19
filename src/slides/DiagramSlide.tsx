@@ -2,6 +2,9 @@ import type { ElementKey, SlideModel } from '../model'
 import { sizeFor } from '../model'
 import type { Palette } from '../tokens'
 import { fonts } from '../tokens'
+import { blockPlate, hlWrap } from './TextPlate'
+import { Selectable } from './Selectable'
+import type { ElementSelection } from './Selectable'
 
 // diagram — centered image plate with hand-annotation labels and dashed
 // leader lines. annotations alternate top-left / bottom-right.
@@ -9,11 +12,14 @@ export function DiagramSlide({
   slide,
   p,
   assets,
+  selectedElement,
+  onSelectElement,
 }: {
   slide: SlideModel
   p: Palette
   assets: Record<string, string>
-}) {
+} & ElementSelection) {
+  const sel = { selectedElement, onSelectElement }
   const has = (k: string) => slide.elements.includes(k as never)
   const colorFor = (key: ElementKey, fallback: string) => slide.colors?.[key] || fallback
   const annotations = has('annotations')
@@ -40,6 +46,7 @@ export function DiagramSlide({
         {has('image') && slide.image && url && (
           // tipped-in photographic plate: a clean mat so the image keeps its
           // true tones (no blend washing it out), with a hairline + soft shadow
+          <Selectable el="image" align="center" {...sel}>
           <div
             style={{
               padding: 22,
@@ -62,8 +69,10 @@ export function DiagramSlide({
               }}
             />
           </div>
+          </Selectable>
         )}
         {has('image') && slide.image && !url && (
+          <Selectable el="image" align="center" {...sel}>
           <div
             style={{
               width: '100%',
@@ -102,6 +111,7 @@ export function DiagramSlide({
               {slide.image}
             </div>
           </div>
+          </Selectable>
         )}
         {(!has('image') || !slide.image) && (
           <div
@@ -127,6 +137,7 @@ export function DiagramSlide({
             key={i}
             style={{ position: 'absolute', top: 160 + tier * 170, left: 96, width: 380 }}
           >
+            <Selectable el="annotations" stretch {...sel}>
             <div
               style={{
                 fontStyle: 'italic',
@@ -138,6 +149,7 @@ export function DiagramSlide({
             >
               {text}
             </div>
+            </Selectable>
             <svg width="240" height="110" style={{ display: 'block', marginTop: 8 }}>
               <line
                 x1="16"
@@ -178,6 +190,7 @@ export function DiagramSlide({
               />
               <circle cx="16" cy="12" r="5" fill="none" stroke={p.dim} strokeWidth="2" />
             </svg>
+            <Selectable el="annotations" stretch {...sel}>
             <div
               style={{
                 fontStyle: 'italic',
@@ -189,6 +202,7 @@ export function DiagramSlide({
             >
               {text}
             </div>
+            </Selectable>
           </div>
         )
       })}
@@ -209,59 +223,87 @@ export function DiagramSlide({
         }}
       >
         {has('text') && slide.text && (
-          <div
-            style={{
-              fontFamily: fonts.mono,
-              fontWeight: 500,
-              fontSize: sizeFor(slide, 'text'),
-              letterSpacing: '0.14em',
-              color: colorFor('text', p.dim),
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {slide.text}
-          </div>
+          <Selectable el="text" align="center" {...sel}>
+            {blockPlate(
+              slide.textBg?.text,
+              p,
+              'center',
+              <div
+                style={{
+                  fontFamily: fonts.mono,
+                  fontWeight: 500,
+                  fontSize: sizeFor(slide, 'text'),
+                  letterSpacing: '0.14em',
+                  color: colorFor('text', p.dim),
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {hlWrap(slide, 'text', p, slide.text)}
+              </div>,
+            )}
+          </Selectable>
         )}
         {has('sub') && slide.sub && (
-          <div
-            style={{
-              fontFamily: fonts.mono,
-              fontWeight: 500,
-              fontSize: sizeFor(slide, 'sub'),
-              letterSpacing: '0.16em',
-              color: colorFor('sub', p.dim),
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {slide.sub}
-          </div>
+          <Selectable el="sub" align="center" {...sel}>
+            {blockPlate(
+              slide.textBg?.sub,
+              p,
+              'center',
+              <div
+                style={{
+                  fontFamily: fonts.mono,
+                  fontWeight: 500,
+                  fontSize: sizeFor(slide, 'sub'),
+                  letterSpacing: '0.16em',
+                  color: colorFor('sub', p.dim),
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {hlWrap(slide, 'sub', p, slide.sub)}
+              </div>,
+            )}
+          </Selectable>
         )}
         {has('def') && slide.def && (
-          <div
-            style={{
-              fontStyle: 'italic',
-              fontWeight: 500,
-              fontSize: sizeFor(slide, 'def'),
-              lineHeight: 1.45,
-              color: colorFor('def', p.dim),
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {slide.def}
-          </div>
+          <Selectable el="def" align="center" {...sel}>
+            {blockPlate(
+              slide.textBg?.def,
+              p,
+              'center',
+              <div
+                style={{
+                  fontStyle: 'italic',
+                  fontWeight: 500,
+                  fontSize: sizeFor(slide, 'def'),
+                  lineHeight: 1.45,
+                  color: colorFor('def', p.dim),
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {hlWrap(slide, 'def', p, slide.def)}
+              </div>,
+            )}
+          </Selectable>
         )}
         {has('attribution') && slide.attribution && (
-          <div
-            style={{
-              fontFamily: fonts.mono,
-              fontWeight: 500,
-              fontSize: sizeFor(slide, 'attribution'),
-              letterSpacing: '0.18em',
-              color: colorFor('attribution', p.dim),
-            }}
-          >
-            — {slide.attribution}
-          </div>
+          <Selectable el="attribution" align="center" {...sel}>
+            {blockPlate(
+              slide.textBg?.attribution,
+              p,
+              'center',
+              <div
+                style={{
+                  fontFamily: fonts.mono,
+                  fontWeight: 500,
+                  fontSize: sizeFor(slide, 'attribution'),
+                  letterSpacing: '0.18em',
+                  color: colorFor('attribution', p.dim),
+                }}
+              >
+                {hlWrap(slide, 'attribution', p, <>— {slide.attribution}</>)}
+              </div>,
+            )}
+          </Selectable>
         )}
       </div>
     </div>

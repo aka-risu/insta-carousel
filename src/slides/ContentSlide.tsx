@@ -1,9 +1,12 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { ElementKey, SlideModel, SlideType } from '../model'
-import { sizeFor } from '../model'
+import { sizeFor, DEFAULT_FREE_POS } from '../model'
 import type { Palette } from '../tokens'
 import { layout, fonts } from '../tokens'
 import { RichText } from './RichText'
+import { blockPlate, hlWrap } from './TextPlate'
+import { Selectable } from './Selectable'
+import type { ElementSelection } from './Selectable'
 
 // one renderer for every non-diagram slide: it lays out whichever elements
 // the slide carries, in canonical order, styled by the slide type's preset.
@@ -28,11 +31,15 @@ export function ContentSlide({
   slide,
   p,
   assets,
+  selectedElement,
+  onSelectElement,
+  onElementPointerDown,
+  onResizePointerDown,
 }: {
   slide: SlideModel
   p: Palette
   assets: Record<string, string>
-}) {
+} & ElementSelection) {
   const type = slide.type as Exclude<SlideType, 'diagram'>
   const preset = PRESETS[type] ?? PRESETS.text
   const centered = preset.align === 'center'
@@ -56,7 +63,7 @@ export function ContentSlide({
               color: colorFor('stat', p.fg),
             }}
           >
-            {slide.stat}
+            {hlWrap(slide, 'stat', p, slide.stat)}
           </div>
         )
       case 'text':
@@ -75,7 +82,7 @@ export function ContentSlide({
               color: colorFor('text', p.fg),
             }}
           >
-            <RichText text={slide.text} p={p} />
+            {hlWrap(slide, 'text', p, <RichText text={slide.text} p={p} />)}
           </div>
         )
       case 'sub':
@@ -112,7 +119,12 @@ export function ContentSlide({
               color: colorFor('sub', p.dim),
             }}
           >
-            {type === 'hook' ? <>{slide.sub || 'keep reading'}&nbsp;&nbsp;→</> : slide.sub}
+            {hlWrap(
+              slide,
+              'sub',
+              p,
+              type === 'hook' ? <>{slide.sub || 'keep reading'}&nbsp;&nbsp;→</> : slide.sub,
+            )}
           </div>
         )
       case 'image': {
@@ -173,7 +185,7 @@ export function ContentSlide({
               textAlign: 'left',
             }}
           >
-            {slide.def}
+            {hlWrap(slide, 'def', p, slide.def)}
           </div>
         )
       case 'attribution':
@@ -189,7 +201,7 @@ export function ContentSlide({
               color: colorFor('attribution', p.dim),
             }}
           >
-            — {slide.attribution}
+            {hlWrap(slide, 'attribution', p, <>— {slide.attribution}</>)}
           </div>
         )
       default:
@@ -197,7 +209,34 @@ export function ContentSlide({
     }
   }
 
-  const blocks = slide.elements.map(renderEl).filter(Boolean)
+  // the root's horizontal padding — a band plate bleeds past this to the edges
+  const padX = layout.frame + (centered ? 48 : 24)
+
+  const blocks = slide.elements
+    .map((key) => {
+      const node = renderEl(key)
+      if (!node) return null
+      // box/pill/band wrap the whole element; highlight is already inline
+      return (
+        <Selectable
+          key={key}
+          el={key}
+          align={preset.align}
+          // a band plate bleeds full-width, so its wrapper must stretch too
+          stretch={slide.textBg?.[key]?.style === 'band'}
+          free={slide.free}
+          pos={slide.free ? (slide.positions?.[key] ?? DEFAULT_FREE_POS) : undefined}
+          selectedElement={selectedElement}
+          onSelectElement={onSelectElement}
+          onElementPointerDown={onElementPointerDown}
+          // images have no font size; everything else can be scaled by drag
+          onResizePointerDown={key === 'image' ? undefined : onResizePointerDown}
+        >
+          {blockPlate(slide.textBg?.[key], p, preset.align, node, padX)}
+        </Selectable>
+      )
+    })
+    .filter(Boolean)
 
   const rootStyle: CSSProperties = {
     position: 'absolute',
@@ -213,5 +252,9 @@ export function ContentSlide({
     gap: 64,
   }
 
-  return <div style={rootStyle}>{blocks}</div>
+  return (
+    <div data-content-root style={rootStyle}>
+      {blocks}
+    </div>
+  )
 }

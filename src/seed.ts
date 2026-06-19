@@ -23,3 +23,17 @@ export const SEED_PROJECT: Project = {
     slideOf('cta', { text: 'learn to use it.', sub: 'antara freediving · koh tao' }),
   ],
 }
+
+// a fresh, placeholder-filled carousel for the "new carousel" button —
+// keeps whatever theme the user is currently on.
+export function templateProject(themeId: string): Project {
+  return {
+    title: '',
+    themeId,
+    slides: [
+      slideOf('hook', { text: 'your hook goes here —\nthe line that earns the swipe' }),
+      slideOf('text', { text: 'one idea per slide.\nreplace this with your point.' }),
+      slideOf('cta', { text: 'your closing ask', sub: 'antara freediving · koh tao' }),
+    ],
+  }
+}

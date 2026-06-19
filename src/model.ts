@@ -21,6 +21,24 @@ export type ElementKey =
   | 'def'
   | 'attribution'
 
+// a tint/scrim drawn over a slide's background image for legibility
+export type OverlayMode = 'wash' | 'top' | 'bottom'
+export interface SlideOverlay {
+  color: string // hex
+  opacity: number // 0..1
+  mode: OverlayMode // even wash · fade from top · fade from bottom
+}
+
+// a colored shape behind a single text element so it reads on a busy image
+export type TextBgStyle = 'box' | 'pill' | 'highlight' | 'band'
+export interface TextBacking {
+  style: TextBgStyle
+  /** hex, or a palette token: 'paper' | 'fg' | 'dim' | 'accent' */
+  color: string
+  /** 0..1, default 1 */
+  opacity?: number
+}
+
 export interface SlideModel {
   id: string
   type: SlideType
@@ -43,7 +61,20 @@ export interface SlideModel {
   imageFrac?: number
   /** background-plate id for image-backed themes; undefined = cycle by position */
   background?: string
+  /** full-slide background image (asset name); overrides the theme plate on any theme */
+  bgImage?: string
+  /** tint/scrim drawn over the background image */
+  overlay?: SlideOverlay
+  /** per-element legibility plate behind text */
+  textBg?: Partial<Record<ElementKey, TextBacking>>
+  /** free-layout mode: elements are placed absolutely via `positions` instead of auto-stacked */
+  free?: boolean
+  /** per-element top-left in canvas coordinates (the 1080×1350 space); used only when `free` */
+  positions?: Partial<Record<ElementKey, { x: number; y: number }>>
 }
+
+/** where a freshly-freed (or newly added) element starts before it's dragged */
+export const DEFAULT_FREE_POS = { x: 140, y: 600 } as const
 
 export interface Project {
   title: string
@@ -370,6 +401,49 @@ export function importDesign(raw: string): Project {
       s.imageMode = d.imageMode
     if (typeof d.imageFrac === 'number') s.imageFrac = d.imageFrac
     if (typeof d.background === 'string') s.background = d.background
+    if (typeof d.bgImage === 'string') s.bgImage = d.bgImage
+
+    const ov = d.overlay as Record<string, unknown> | undefined
+    if (ov && typeof ov === 'object' && typeof ov.color === 'string') {
+      const mode = ov.mode === 'top' || ov.mode === 'bottom' ? ov.mode : 'wash'
+      s.overlay = {
+        color: ov.color,
+        opacity: typeof ov.opacity === 'number' ? ov.opacity : 0.4,
+        mode,
+      }
+    }
+
+    if (d.textBg && typeof d.textBg === 'object') {
+      const out: Partial<Record<ElementKey, TextBacking>> = {}
+      for (const [k, v] of Object.entries(d.textBg as Record<string, unknown>)) {
+        if (!ELEMENT_ORDER.includes(k as ElementKey)) continue
+        const tb = v as Record<string, unknown>
+        if (!tb || typeof tb !== 'object' || typeof tb.color !== 'string') continue
+        const style = (['box', 'pill', 'highlight', 'band'] as const).includes(
+          tb.style as TextBgStyle,
+        )
+          ? (tb.style as TextBgStyle)
+          : 'box'
+        out[k as ElementKey] = {
+          style,
+          color: tb.color,
+          ...(typeof tb.opacity === 'number' ? { opacity: tb.opacity } : {}),
+        }
+      }
+      if (Object.keys(out).length) s.textBg = out
+    }
+
+    if (d.free === true) s.free = true
+    if (d.positions && typeof d.positions === 'object') {
+      const out: Partial<Record<ElementKey, { x: number; y: number }>> = {}
+      for (const [k, v] of Object.entries(d.positions as Record<string, unknown>)) {
+        if (!ELEMENT_ORDER.includes(k as ElementKey)) continue
+        const pos = v as Record<string, unknown>
+        if (pos && typeof pos.x === 'number' && typeof pos.y === 'number')
+          out[k as ElementKey] = { x: pos.x, y: pos.y }
+      }
+      if (Object.keys(out).length) s.positions = out
+    }
     return s
   })
 
@@ -503,8 +577,7 @@ export function referencedAssets(p: Project): string[] {
   return [
     ...new Set(
       p.slides
-        .filter((s) => s.elements.includes('image'))
-        .map((s) => s.image)
+        .flatMap((s) => [s.elements.includes('image') ? s.image : '', s.bgImage ?? ''])
         .filter(Boolean),
     ),
   ]

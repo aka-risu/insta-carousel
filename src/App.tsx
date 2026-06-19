@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ElementKey, ImageMode, Project, SlideModel, SlideType } from './model'
+import type { PointerEvent as ReactPointerEvent } from 'react'
+import type {
+  ElementKey,
+  ImageMode,
+  Project,
+  SlideModel,
+  SlideOverlay,
+  SlideType,
+  TextBacking,
+  TextBgStyle,
+} from './model'
 import {
   AVAILABLE_ELEMENTS,
+  DEFAULT_FREE_POS,
   DEFAULT_IMAGE_FRAC,
   IMAGE_FRAC_RANGE,
   SIZE_RANGE,
@@ -17,6 +28,7 @@ import {
   newSlide,
   referencedAssets,
   retype,
+  sizeFor,
 } from './model'
 import {
   THEMES,
@@ -30,7 +42,7 @@ import {
 import type { CustomThemeData, ColorOverrides } from './tokens'
 import { Slide } from './slides/Slide'
 import { exportCarousel } from './exporter'
-import { SEED_PROJECT } from './seed'
+import { SEED_PROJECT, templateProject } from './seed'
 import sealPlateUrl from './assets/seal-plate.jpg'
 import './App.css'
 
@@ -43,6 +55,7 @@ const PROJECT_KEY = 'antara-carousel-project' // the live working draft
 const DESIGNS_KEY = 'antara-carousel-designs' // the saved library
 const CURRENT_KEY = 'antara-carousel-current' // id of the loaded saved design
 const CUSTOM_KEY = 'antara-carousel-custom' // the user's custom theme (image + colors)
+const IMAGES_KEY = 'antara-carousel-images' // user-uploaded images, as data urls (persisted)
 const LEGACY_KEY = 'antara-carousel-draft'
 const PREVIEW_W = 340
 const SCALE = PREVIEW_W / layout.slideW
@@ -94,6 +107,31 @@ function loadCustom(): CustomThemeData {
   return DEFAULT_CUSTOM
 }
 
+// user-uploaded images, persisted as data urls so they survive a reload and can
+// be reused as slide backgrounds. built-in example assets are bundled separately.
+function loadImages(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(IMAGES_KEY)
+    if (raw) {
+      const obj = JSON.parse(raw) as Record<string, string>
+      if (obj && typeof obj === 'object') return obj
+    }
+  } catch {
+    // corrupted — start empty
+  }
+  return {}
+}
+
+// read an image File as a data url (so it can be persisted)
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error('could not read file'))
+    reader.readAsDataURL(file)
+  })
+}
+
 function loadProject(): Project {
   try {
     const raw = localStorage.getItem(PROJECT_KEY)
@@ -119,7 +157,13 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(
     () => loadProject().slides[0]?.id ?? null,
   )
-  const [assets, setAssets] = useState<Record<string, string>>(BUILTIN_ASSETS)
+  // a copied free-layout (element positions) ready to paste onto another slide
+  const [layoutClip, setLayoutClip] = useState<SlideModel['positions'] | null>(null)
+  // which element on the selected slide is highlighted (synced between the
+  // editor cards and the slide previews). null = whole slide, no element.
+  const [selectedElement, setSelectedElement] = useState<ElementKey | null>(null)
+  const [userImages, setUserImages] = useState<Record<string, string>>(loadImages)
+  const [storageFull, setStorageFull] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [exporting, setExporting] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
@@ -131,10 +175,12 @@ export default function App() {
     () => localStorage.getItem(CURRENT_KEY),
   )
   const [showDesigns, setShowDesigns] = useState(false)
+  const [showNewPrompt, setShowNewPrompt] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [custom, setCustom] = useState<CustomThemeData>(loadCustom)
   const fileInput = useRef<HTMLInputElement>(null)
   const customBgInput = useRef<HTMLInputElement>(null)
+  const bgInput = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -154,6 +200,20 @@ export default function App() {
     localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom))
   }, [custom])
 
+  // the full image lookup the renderer sees: bundled examples + user uploads
+  const assets = useMemo(() => ({ ...BUILTIN_ASSETS, ...userImages }), [userImages])
+
+  // persist images as data urls. localStorage is ~5MB; many full-res images can
+  // blow the quota, so we keep them in memory for the session and warn instead.
+  const saveImages = useCallback((images: Record<string, string>) => {
+    try {
+      localStorage.setItem(IMAGES_KEY, JSON.stringify(images))
+      setStorageFull(false)
+    } catch {
+      setStorageFull(true)
+    }
+  }, [])
+
   const theme = useMemo(() => {
     const base =
       project.themeId === 'custom' ? buildCustomTheme(custom) : themeById(project.themeId)
@@ -164,6 +224,19 @@ export default function App() {
   const missing = refs.filter((name) => !assets[name])
 
   const selected = project.slides.find((s) => s.id === selectedId) ?? null
+
+  // the highlighted element only counts while it still lives on the selected
+  // slide — so switching slides clears a stale highlight automatically
+  const activeElement =
+    selected && selectedElement && selected.elements.includes(selectedElement)
+      ? selectedElement
+      : null
+
+  // scroll the matching editor card into view when an element is picked on a slide
+  const selectedCardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    selectedCardRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [activeElement])
 
   // ── project mutations ──────────────────────────────────────
   const patch = useCallback((fn: (p: Project) => Project) => {
@@ -237,6 +310,29 @@ export default function App() {
     [patch],
   )
 
+  // set (or clear) the per-slide background overlay
+  const setOverlay = useCallback(
+    (id: string, value: SlideOverlay | undefined) =>
+      updateSlide(id, { overlay: value }),
+    [updateSlide],
+  )
+
+  // set (or clear, when value is undefined) a single element's text backing plate
+  const setTextBg = useCallback(
+    (id: string, key: ElementKey, value: TextBacking | undefined) =>
+      patch((p) => ({
+        ...p,
+        slides: p.slides.map((s) => {
+          if (s.id !== id) return s
+          const textBg = { ...(s.textBg ?? {}) }
+          if (value == null) delete textBg[key]
+          else textBg[key] = value
+          return { ...s, textBg }
+        }),
+      })),
+    [patch],
+  )
+
   // set (or clear) a theme-wide text-color override on the project
   const setProjectColor = useCallback(
     (key: keyof ColorOverrides, value: string | undefined) =>
@@ -264,6 +360,148 @@ export default function App() {
       })),
     [patch],
   )
+
+  // ── free-layout drag ───────────────────────────────────────
+  // dragging an element on the preview places it freely. the slide flips into
+  // free mode with each element's position seeded from where auto-layout draws
+  // it, so the switch is seamless. positions are canvas coords (1080×1350), so
+  // they render identically in the scaled preview and the full-size export.
+  const dragRef = useRef<{
+    id: string
+    key: ElementKey
+    startX: number
+    startY: number
+    seed: NonNullable<SlideModel['positions']>
+    origX: number
+    origY: number
+    moved: boolean
+  } | null>(null)
+
+  const onElementPointerDown = useCallback(
+    (e: ReactPointerEvent, key: ElementKey) => {
+      const slide = selected
+      if (!slide || slide.type === 'diagram') return
+      const wrapper = e.currentTarget as HTMLElement
+      const canvas = wrapper.closest('[data-slide-canvas]') as HTMLElement | null
+      const root = wrapper.closest('[data-content-root]') as HTMLElement | null
+      if (!canvas || !root) return
+      const rootRect = root.getBoundingClientRect()
+
+      // seed every element: keep any already-pinned positions, measure the rest
+      // from their current on-screen spot (divided back out of the preview scale)
+      const seed: NonNullable<SlideModel['positions']> = { ...(slide.free ? slide.positions : {}) }
+      canvas.querySelectorAll<HTMLElement>('[data-el]').forEach((el) => {
+        const k = el.dataset.el as ElementKey
+        if (seed[k]) return
+        const r = el.getBoundingClientRect()
+        seed[k] = {
+          x: Math.round((r.left - rootRect.left) / SCALE),
+          y: Math.round((r.top - rootRect.top) / SCALE),
+        }
+      })
+
+      const start = seed[key] ?? { ...DEFAULT_FREE_POS }
+      dragRef.current = {
+        id: slide.id,
+        key,
+        startX: e.clientX,
+        startY: e.clientY,
+        seed,
+        origX: start.x,
+        origY: start.y,
+        moved: false,
+      }
+      setSelectedElement(key)
+
+      const onMove = (ev: PointerEvent) => {
+        const d = dragRef.current
+        if (!d) return
+        const dxPx = ev.clientX - d.startX
+        const dyPx = ev.clientY - d.startY
+        // a small threshold keeps a plain click (to select) from nudging things
+        if (!d.moved && Math.hypot(dxPx, dyPx) < 4) return
+        d.moved = true
+        ev.preventDefault()
+        updateSlide(d.id, {
+          free: true,
+          positions: {
+            ...d.seed,
+            [d.key]: {
+              x: Math.round(d.origX + dxPx / SCALE),
+              y: Math.round(d.origY + dyPx / SCALE),
+            },
+          },
+        })
+      }
+      const onUp = () => {
+        dragRef.current = null
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+    },
+    [selected, updateSlide],
+  )
+
+  // dragging the corner handle scales the element's font size. the ratio of the
+  // pointer's distance from the (anchored) top-left corner drives the new size,
+  // clamped to the element's slider range — so resize and the slider stay in sync.
+  const onElementResizeStart = useCallback(
+    (e: ReactPointerEvent, key: ElementKey) => {
+      const slide = selected
+      if (!slide || key === 'image') return
+      const wrapper = (e.currentTarget as HTMLElement).closest('[data-el]') as HTMLElement | null
+      if (!wrapper) return
+      const rect = wrapper.getBoundingClientRect()
+      const origSize = sizeFor(slide, key)
+      const startDist = Math.hypot(e.clientX - rect.left, e.clientY - rect.top) || 1
+      const range = SIZE_RANGE[key]
+      setSelectedElement(key)
+
+      const onMove = (ev: PointerEvent) => {
+        ev.preventDefault()
+        const dist = Math.hypot(ev.clientX - rect.left, ev.clientY - rect.top)
+        const next = Math.round(origSize * (dist / startDist))
+        setSize(slide.id, key, Math.max(range.min, Math.min(range.max, next)))
+      }
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+    },
+    [selected, setSize],
+  )
+
+  // reset a slide to automatic stacking, dropping all free positions
+  const resetLayout = useCallback(
+    (id: string) => updateSlide(id, { free: false, positions: undefined }),
+    [updateSlide],
+  )
+  // stash the selected slide's layout so it can be pasted onto another slide
+  const copyLayout = useCallback(() => {
+    if (selected?.positions) setLayoutClip({ ...selected.positions })
+  }, [selected])
+  // apply the copied layout — only elements the target also has are affected
+  const pasteLayout = useCallback(
+    (id: string) => {
+      if (layoutClip) updateSlide(id, { free: true, positions: { ...layoutClip } })
+    },
+    [layoutClip, updateSlide],
+  )
+  // push the selected slide's layout onto every other (non-diagram) slide
+  const applyLayoutToAll = useCallback(() => {
+    if (!selected?.positions) return
+    const positions = { ...selected.positions }
+    patch((p) => ({
+      ...p,
+      slides: p.slides.map((s) =>
+        s.type === 'diagram' ? s : { ...s, free: true, positions: { ...positions } },
+      ),
+    }))
+  }, [selected, patch])
 
   // wrap the current body-text selection in emphasis markers (circle/underline/
   // highlight). no-op if nothing is selected.
@@ -334,26 +572,32 @@ export default function App() {
   )
 
   // ── assets ─────────────────────────────────────────────────
-  const addFiles = useCallback((files: FileList | File[]) => {
-    setAssets((prev) => {
-      const next = { ...prev }
-      for (const file of Array.from(files)) {
-        if (!file.type.startsWith('image/')) continue
-        if (next[file.name]) URL.revokeObjectURL(next[file.name])
-        next[file.name] = URL.createObjectURL(file)
-      }
-      return next
-    })
-  }, [])
+  // read uploads as data urls (persisted), then report the names added so a
+  // caller (e.g. the slide-background picker) can assign the freshly added image.
+  const addFiles = useCallback(
+    async (files: FileList | File[], onAdded?: (names: string[]) => void) => {
+      const images = Array.from(files).filter((f) => f.type.startsWith('image/'))
+      const entries = await Promise.all(
+        images.map(async (f) => [f.name, await fileToDataUrl(f)] as const),
+      )
+      if (!entries.length) return
+      const next = { ...userImages, ...Object.fromEntries(entries) }
+      setUserImages(next)
+      saveImages(next)
+      onAdded?.(entries.map(([name]) => name))
+    },
+    [userImages, saveImages],
+  )
 
-  const removeAsset = useCallback((name: string) => {
-    setAssets((prev) => {
-      const next = { ...prev }
-      URL.revokeObjectURL(next[name])
+  const removeAsset = useCallback(
+    (name: string) => {
+      const next = { ...userImages }
       delete next[name]
-      return next
-    })
-  }, [])
+      setUserImages(next)
+      saveImages(next)
+    },
+    [userImages, saveImages],
+  )
 
   // ── custom theme ───────────────────────────────────────────
   // store the background as a data url (not an object url) so it survives a
@@ -479,17 +723,33 @@ export default function App() {
     setDesigns((list) => list.map((d) => (d.id === id ? { ...d, name } : d)))
   }, [])
 
-  const newDesign = useCallback(() => {
-    const blank: Project = {
-      title: '',
-      themeId: project.themeId,
-      slides: [newSlide('hook')],
-    }
-    setProject(blank)
-    setSelectedId(blank.slides[0].id)
+  // load a fresh placeholder carousel, discarding the current one
+  const loadTemplate = useCallback(() => {
+    const fresh = templateProject(project.themeId)
+    setProject(fresh)
+    setSelectedId(fresh.slides[0].id)
     setCurrentDesignId(null)
     setShowDesigns(false)
+    setShowNewPrompt(false)
   }, [project.themeId])
+
+  // does the live carousel have unsaved work worth a prompt before discarding?
+  const isDirty = useCallback(() => {
+    if (currentDesignId) {
+      const saved = designs.find((d) => d.id === currentDesignId)
+      return !saved || JSON.stringify(saved.project) !== JSON.stringify(project)
+    }
+    return project.slides.some((s) =>
+      [s.text, s.sub, s.stat, s.def, s.attribution, s.annotations, s.image].some(Boolean),
+    )
+  }, [project, currentDesignId, designs])
+
+  // "new carousel": prompt to save first if there's anything to lose
+  const newDesign = useCallback(() => {
+    setShowDesigns(false)
+    if (isDirty()) setShowNewPrompt(true)
+    else loadTemplate()
+  }, [isDirty, loadTemplate])
 
   const currentName = designs.find((d) => d.id === currentDesignId)?.name ?? null
 
@@ -520,6 +780,9 @@ export default function App() {
         </button>
         <button className="ghost-btn" onClick={() => setImporting(true)}>
           import outline
+        </button>
+        <button className="ghost-btn" onClick={newDesign} title="start a fresh carousel from a template">
+          new carousel
         </button>
         <button className="ghost-btn" onClick={saveDesign} title={currentName ? `update “${currentName}”` : 'save to your designs'}>
           {savedFlash ? 'saved ✓' : currentName ? 'save' : 'save design'}
@@ -699,6 +962,49 @@ export default function App() {
                 </select>
               </div>
 
+              {selected.type !== 'diagram' && (
+                <div className="field">
+                  <span className="field-label">layout</span>
+                  <div className="size-row">
+                    <button
+                      className={`size-auto ${!selected.free ? 'on' : ''}`}
+                      onClick={() => resetLayout(selected.id)}
+                      title="auto-stack the elements (clears free positions)"
+                    >
+                      auto
+                    </button>
+                    <button
+                      className="mark-btn"
+                      onClick={copyLayout}
+                      disabled={!selected.free}
+                      title="copy this slide's element positions"
+                    >
+                      copy
+                    </button>
+                    <button
+                      className="mark-btn"
+                      onClick={() => pasteLayout(selected.id)}
+                      disabled={!layoutClip}
+                      title="paste the copied positions onto this slide"
+                    >
+                      paste
+                    </button>
+                    <button
+                      className="mark-btn"
+                      onClick={applyLayoutToAll}
+                      disabled={!selected.free}
+                      title="apply this slide's layout to every other slide"
+                    >
+                      apply to all
+                    </button>
+                  </div>
+                  <span className="field-hint">
+                    drag any element on the slide preview to place it freely. “auto” returns to
+                    automatic stacking.
+                  </span>
+                </div>
+              )}
+
               {theme.backgrounds && (
                 <div className="field">
                   <span className="field-label">background plate</span>
@@ -721,13 +1027,123 @@ export default function App() {
                 </div>
               )}
 
+              {/* per-slide background image + overlay — works on any theme */}
+              <div className="field">
+                <span className="field-label">slide background</span>
+                <select
+                  value={selected.bgImage ?? ''}
+                  onChange={(e) =>
+                    updateSlide(selected.id, { bgImage: e.target.value || undefined })
+                  }
+                >
+                  <option value="">none (use theme)</option>
+                  {Object.keys(assets).map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                  {selected.bgImage && !assets[selected.bgImage] && (
+                    <option value={selected.bgImage}>⚠ {selected.bgImage} (missing)</option>
+                  )}
+                </select>
+                <div className="add-row">
+                  <button className="add-chip" onClick={() => bgInput.current?.click()}>
+                    + upload image
+                  </button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={bgInput}
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      if (e.target.files?.length)
+                        void addFiles(e.target.files, (names) =>
+                          updateSlide(selected.id, { bgImage: names[0] }),
+                        )
+                      e.target.value = ''
+                    }}
+                  />
+                </div>
+                <span className="field-hint">
+                  a full-slide photo behind everything — reuse an uploaded image or add one
+                </span>
+
+                <div className="size-row">
+                  <span className="size-label">overlay</span>
+                  <button
+                    className={`size-auto ${!selected.overlay ? 'on' : ''}`}
+                    onClick={() => setOverlay(selected.id, undefined)}
+                    title="no tint"
+                  >
+                    off
+                  </button>
+                  {(['wash', 'top', 'bottom'] as const).map((m) => (
+                    <button
+                      key={m}
+                      className={`size-auto ${selected.overlay?.mode === m ? 'on' : ''}`}
+                      onClick={() =>
+                        setOverlay(selected.id, {
+                          color: selected.overlay?.color ?? '#000000',
+                          opacity: selected.overlay?.opacity ?? 0.4,
+                          mode: m,
+                        })
+                      }
+                      title={m === 'wash' ? 'even tint across the slide' : `fade from the ${m}`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                {selected.overlay && (
+                  <>
+                    <div className="size-row">
+                      <span className="size-label">tint</span>
+                      <input
+                        type="color"
+                        value={selected.overlay.color}
+                        onChange={(e) =>
+                          setOverlay(selected.id, {
+                            ...selected.overlay!,
+                            color: e.target.value,
+                          })
+                        }
+                      />
+                      <span className="size-val">{selected.overlay.color}</span>
+                    </div>
+                    <div className="size-row">
+                      <span className="size-label">opacity</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={selected.overlay.opacity}
+                        onChange={(e) =>
+                          setOverlay(selected.id, {
+                            ...selected.overlay!,
+                            opacity: Number(e.target.value),
+                          })
+                        }
+                      />
+                      <span className="size-val">
+                        {Math.round(selected.overlay.opacity * 100)}%
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
               <span className="field-hint drag-hint">drag the ⠿ handle to reorder elements on the slide</span>
               {selected.elements.map((key, idx) => {
                 const def = elementDef(selected.type, key)
                 return (
                   <div
-                    className={`field draggable ${dragEl?.id === selected.id && dragEl.idx === idx ? 'dragging-el' : ''} ${dragOverIdx === idx ? 'drag-over' : ''}`}
+                    className={`field draggable ${dragEl?.id === selected.id && dragEl.idx === idx ? 'dragging-el' : ''} ${dragOverIdx === idx ? 'drag-over' : ''} ${activeElement === key ? 'selected-el' : ''}`}
                     key={key}
+                    ref={activeElement === key ? selectedCardRef : undefined}
+                    // clicking anywhere in the card selects this element (and
+                    // highlights it on the slide)
+                    onClick={() => setSelectedElement(key)}
                     // only the handle starts a drag; the card is just the drop target,
                     // so the slider / textarea inside stay fully interactive
                     onDragOver={(e) => {
@@ -862,6 +1278,85 @@ export default function App() {
                         )
                       })()}
 
+                    {/* per-element text backing plate — legibility on busy images */}
+                    {key !== 'image' &&
+                      (() => {
+                        const tb = selected.textBg?.[key]
+                        const styles: TextBgStyle[] = ['box', 'pill', 'highlight', 'band']
+                        const tokens = ['paper', 'accent', 'fg', 'dim'] as const
+                        return (
+                          <>
+                            <div className="size-row">
+                              <span className="size-label">backing</span>
+                              <button
+                                className={`size-auto ${!tb ? 'on' : ''}`}
+                                onClick={() => setTextBg(selected.id, key, undefined)}
+                                title="no backing"
+                              >
+                                off
+                              </button>
+                              {styles.map((st) => (
+                                <button
+                                  key={st}
+                                  className={`size-auto ${tb?.style === st ? 'on' : ''}`}
+                                  onClick={() =>
+                                    setTextBg(selected.id, key, {
+                                      style: st,
+                                      color: tb?.color ?? 'paper',
+                                      opacity: tb?.opacity ?? 1,
+                                    })
+                                  }
+                                >
+                                  {st}
+                                </button>
+                              ))}
+                            </div>
+                            {tb && (
+                              <>
+                                <div className="size-row">
+                                  <span className="size-label">plate</span>
+                                  {tokens.map((tok) => (
+                                    <button
+                                      key={tok}
+                                      className={`size-auto ${tb.color === tok ? 'on' : ''}`}
+                                      onClick={() => setTextBg(selected.id, key, { ...tb, color: tok })}
+                                    >
+                                      {tok}
+                                    </button>
+                                  ))}
+                                  <input
+                                    type="color"
+                                    value={tb.color.startsWith('#') ? tb.color : '#ffffff'}
+                                    onChange={(e) =>
+                                      setTextBg(selected.id, key, { ...tb, color: e.target.value })
+                                    }
+                                  />
+                                </div>
+                                <div className="size-row">
+                                  <span className="size-label">opacity</span>
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={1}
+                                    step={0.05}
+                                    value={tb.opacity ?? 1}
+                                    onChange={(e) =>
+                                      setTextBg(selected.id, key, {
+                                        ...tb,
+                                        opacity: Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                  <span className="size-val">
+                                    {Math.round((tb.opacity ?? 1) * 100)}%
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                          </>
+                        )
+                      })()}
+
                     {/* image placement — boxed inline plate, or a full-bleed band */}
                     {key === 'image' && (
                       <>
@@ -936,6 +1431,12 @@ export default function App() {
           )}
 
           <label className="pane-label">assets</label>
+          {storageFull && (
+            <p className="field-hint" style={{ color: '#b0462f' }}>
+              ⚠ browser storage is full — new images stay for this session but won’t survive a
+              reload. remove unused images to free space.
+            </p>
+          )}
           <div
             className={`asset-drop ${dragging ? 'dragging' : ''}`}
             onDragOver={(e) => {
@@ -996,7 +1497,10 @@ export default function App() {
               <figure
                 key={slide.id}
                 className={`preview-card ${slide.id === selectedId ? 'selected' : ''}`}
-                onClick={() => setSelectedId(slide.id)}
+                onClick={() => {
+                  setSelectedId(slide.id)
+                  setSelectedElement(null)
+                }}
               >
                 <div
                   className="preview-frame"
@@ -1004,6 +1508,7 @@ export default function App() {
                 >
                   {/* full-size slide, scaled down — same component as export */}
                   <div
+                    data-slide-canvas
                     style={{
                       width: layout.slideW,
                       height: layout.slideH,
@@ -1018,6 +1523,18 @@ export default function App() {
                       total={project.slides.length}
                       theme={theme}
                       assets={assets}
+                      selectedElement={slide.id === selectedId ? activeElement : null}
+                      onSelectElement={(key) => {
+                        setSelectedId(slide.id)
+                        setSelectedElement(key)
+                      }}
+                      // drag-to-position / resize are wired only for the selected slide
+                      onElementPointerDown={
+                        slide.id === selectedId ? onElementPointerDown : undefined
+                      }
+                      onResizePointerDown={
+                        slide.id === selectedId ? onElementResizeStart : undefined
+                      }
                     />
                   </div>
                 </div>
@@ -1031,6 +1548,36 @@ export default function App() {
       </main>
 
       {/* ── import overlay ── */}
+      {/* ── save-before-new prompt ── */}
+      {showNewPrompt && (
+        <div className="overlay" onClick={() => setShowNewPrompt(false)}>
+          <div className="overlay-card" onClick={(e) => e.stopPropagation()}>
+            <label className="pane-label">start a new carousel?</label>
+            <p className="type-about">
+              this will replace the carousel you're working on with a fresh
+              template. save your current work first?
+            </p>
+            <div className="overlay-actions">
+              <button className="ghost-btn" onClick={() => setShowNewPrompt(false)}>
+                cancel
+              </button>
+              <button className="ghost-btn" onClick={loadTemplate}>
+                don't save
+              </button>
+              <button
+                className="export-btn"
+                onClick={() => {
+                  saveDesign()
+                  loadTemplate()
+                }}
+              >
+                save &amp; new
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {importing && (
         <div className="overlay" onClick={() => setImporting(false)}>
           <div className="overlay-card" onClick={(e) => e.stopPropagation()}>
