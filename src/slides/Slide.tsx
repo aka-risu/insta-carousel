@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { SlideModel } from '../model'
+import { DEFAULT_IMAGE_FRAC, IMAGE_FRAC_RANGE } from '../model'
 import type { Theme, Palette } from '../tokens'
 import { layout, fonts } from '../tokens'
 import { AntaraWordmark } from './AntaraWordmark'
@@ -27,6 +28,19 @@ export function Slide({ slide, microLabel, index, total, theme, assets }: SlideP
     charts && charts.length
       ? (charts.find((c) => c.id === slide.background) ?? charts[index % charts.length]).url
       : undefined
+
+  // full-bleed image band: a slide's image pinned edge-to-edge to the top or
+  // bottom. the band owns its region; the text + chrome shrink into the rest.
+  const bandSide = slide.imageMode === 'top' || slide.imageMode === 'bottom' ? slide.imageMode : null
+  const hasBand = bandSide !== null && !!slide.image
+  const bandFrac = Math.min(
+    IMAGE_FRAC_RANGE.max,
+    Math.max(IMAGE_FRAC_RANGE.min, slide.imageFrac ?? DEFAULT_IMAGE_FRAC),
+  )
+  const bandH = hasBand ? Math.round(layout.slideH * bandFrac) : 0
+  const bandUrl = hasBand && slide.image ? assets[slide.image] : undefined
+  const contentTop = hasBand && bandSide === 'top' ? bandH : 0
+  const contentBottom = hasBand && bandSide === 'bottom' ? bandH : 0
 
   const rootStyle: CSSProperties = {
     width: layout.slideW,
@@ -59,8 +73,48 @@ export function Slide({ slide, microLabel, index, total, theme, assets }: SlideP
         />
       )}
 
-      {/* inner hairline frame — skipped on chart plates, which carry their own */}
-      {!bgUrl && (
+      {/* full-bleed image band (top or bottom) */}
+      {hasBand &&
+        (bandUrl ? (
+          <img
+            src={bandUrl}
+            alt={slide.image}
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              [bandSide as 'top' | 'bottom']: 0,
+              width: '100%',
+              height: bandH,
+              objectFit: 'cover',
+              pointerEvents: 'none',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              [bandSide as 'top' | 'bottom']: 0,
+              width: '100%',
+              height: bandH,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: fonts.mono,
+              fontSize: 30,
+              color: p.dim,
+              border: `2px dashed ${p.dim}`,
+              boxSizing: 'border-box',
+            }}
+          >
+            ⚠ missing image · {slide.image}
+          </div>
+        ))}
+
+      {/* inner hairline frame — skipped on chart plates and full-bleed bands */}
+      {!bgUrl && !hasBand && (
         <div
           style={{
             position: 'absolute',
@@ -72,11 +126,11 @@ export function Slide({ slide, microLabel, index, total, theme, assets }: SlideP
         />
       )}
 
-      {/* chrome: micro-label */}
+      {/* chrome: micro-label — sits inside the content region, clear of the band */}
       <div
         style={{
           position: 'absolute',
-          top: layout.frame,
+          top: contentTop + layout.frame,
           left: layout.frame,
           fontFamily: fonts.mono,
           fontWeight: 500,
@@ -88,8 +142,8 @@ export function Slide({ slide, microLabel, index, total, theme, assets }: SlideP
         {microLabel}
       </div>
 
-      {/* archetype content */}
-      <div style={{ position: 'absolute', inset: 0 }}>
+      {/* archetype content — confined to the region the band leaves free */}
+      <div style={{ position: 'absolute', top: contentTop, bottom: contentBottom, left: 0, right: 0 }}>
         {renderType(slide, p, assets)}
       </div>
 
@@ -97,7 +151,7 @@ export function Slide({ slide, microLabel, index, total, theme, assets }: SlideP
       <div
         style={{
           position: 'absolute',
-          bottom: layout.frame + 2,
+          bottom: contentBottom + layout.frame + 2,
           left: layout.frame,
         }}
       >
@@ -106,7 +160,7 @@ export function Slide({ slide, microLabel, index, total, theme, assets }: SlideP
       <div
         style={{
           position: 'absolute',
-          bottom: layout.frame - 8,
+          bottom: contentBottom + layout.frame - 8,
           right: layout.frame,
           fontStyle: 'italic',
           fontWeight: 500,

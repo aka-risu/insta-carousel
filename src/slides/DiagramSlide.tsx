@@ -1,4 +1,4 @@
-import type { SlideModel } from '../model'
+import type { ElementKey, SlideModel } from '../model'
 import { sizeFor } from '../model'
 import type { Palette } from '../tokens'
 import { fonts } from '../tokens'
@@ -15,6 +15,7 @@ export function DiagramSlide({
   assets: Record<string, string>
 }) {
   const has = (k: string) => slide.elements.includes(k as never)
+  const colorFor = (key: ElementKey, fallback: string) => slide.colors?.[key] || fallback
   const annotations = has('annotations')
     ? slide.annotations.split('\n').filter((l) => l.trim() !== '')
     : []
@@ -132,7 +133,7 @@ export function DiagramSlide({
                 fontWeight: 500,
                 fontSize: sizeFor(slide, 'annotations'),
                 lineHeight: 1.28,
-                color: p.fg,
+                color: colorFor('annotations', p.fg),
               }}
             >
               {text}
@@ -183,7 +184,7 @@ export function DiagramSlide({
                 fontWeight: 500,
                 fontSize: sizeFor(slide, 'annotations'),
                 lineHeight: 1.28,
-                color: p.fg,
+                color: colorFor('annotations', p.fg),
               }}
             >
               {text}
@@ -214,7 +215,7 @@ export function DiagramSlide({
               fontWeight: 500,
               fontSize: sizeFor(slide, 'text'),
               letterSpacing: '0.14em',
-              color: p.dim,
+              color: colorFor('text', p.dim),
               whiteSpace: 'pre-wrap',
             }}
           >
@@ -228,7 +229,7 @@ export function DiagramSlide({
               fontWeight: 500,
               fontSize: sizeFor(slide, 'sub'),
               letterSpacing: '0.16em',
-              color: p.dim,
+              color: colorFor('sub', p.dim),
               whiteSpace: 'pre-wrap',
             }}
           >
@@ -242,7 +243,7 @@ export function DiagramSlide({
               fontWeight: 500,
               fontSize: sizeFor(slide, 'def'),
               lineHeight: 1.45,
-              color: p.dim,
+              color: colorFor('def', p.dim),
               whiteSpace: 'pre-wrap',
             }}
           >
@@ -256,7 +257,7 @@ export function DiagramSlide({
               fontWeight: 500,
               fontSize: sizeFor(slide, 'attribution'),
               letterSpacing: '0.18em',
-              color: p.dim,
+              color: colorFor('attribution', p.dim),
             }}
           >
             — {slide.attribution}

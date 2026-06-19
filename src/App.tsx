@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ElementKey, Project, SlideModel, SlideType } from './model'
+import type { ElementKey, ImageMode, Project, SlideModel, SlideType } from './model'
 import {
   AVAILABLE_ELEMENTS,
+  DEFAULT_IMAGE_FRAC,
+  IMAGE_FRAC_RANGE,
   SIZE_RANGE,
   SLIDE_TYPES,
   SLIDE_TYPE_ORDER,
@@ -16,8 +18,16 @@ import {
   referencedAssets,
   retype,
 } from './model'
-import { THEMES, themeById, layout, buildCustomTheme, sampleTheme, DEFAULT_CUSTOM } from './tokens'
-import type { CustomThemeData } from './tokens'
+import {
+  THEMES,
+  themeById,
+  layout,
+  buildCustomTheme,
+  sampleTheme,
+  DEFAULT_CUSTOM,
+  applyColorOverrides,
+} from './tokens'
+import type { CustomThemeData, ColorOverrides } from './tokens'
 import { Slide } from './slides/Slide'
 import { exportCarousel } from './exporter'
 import { SEED_PROJECT } from './seed'
@@ -144,10 +154,11 @@ export default function App() {
     localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom))
   }, [custom])
 
-  const theme = useMemo(
-    () => (project.themeId === 'custom' ? buildCustomTheme(custom) : themeById(project.themeId)),
-    [project.themeId, custom],
-  )
+  const theme = useMemo(() => {
+    const base =
+      project.themeId === 'custom' ? buildCustomTheme(custom) : themeById(project.themeId)
+    return applyColorOverrides(base, project.colors)
+  }, [project.themeId, project.colors, custom])
   const labels = useMemo(() => microLabels(project, theme), [project, theme])
   const refs = useMemo(() => referencedAssets(project), [project])
   const missing = refs.filter((name) => !assets[name])
@@ -207,6 +218,34 @@ export default function App() {
           return { ...s, sizes }
         }),
       })),
+    [patch],
+  )
+
+  // set (or clear, when value is undefined) a single element's color override
+  const setElementColor = useCallback(
+    (id: string, key: ElementKey, value: string | undefined) =>
+      patch((p) => ({
+        ...p,
+        slides: p.slides.map((s) => {
+          if (s.id !== id) return s
+          const colors = { ...(s.colors ?? {}) }
+          if (value == null) delete colors[key]
+          else colors[key] = value
+          return { ...s, colors }
+        }),
+      })),
+    [patch],
+  )
+
+  // set (or clear) a theme-wide text-color override on the project
+  const setProjectColor = useCallback(
+    (key: keyof ColorOverrides, value: string | undefined) =>
+      patch((p) => {
+        const colors = { ...(p.colors ?? {}) }
+        if (value == null) delete colors[key]
+        else colors[key] = value
+        return { ...p, colors }
+      }),
     [patch],
   )
 
@@ -593,6 +632,45 @@ export default function App() {
               </span>
             </div>
           )}
+
+          {project.themeId !== 'custom' && (
+            <div className="custom-theme">
+              <label className="pane-label">text colors</label>
+              <div className="color-rows">
+                {([
+                  ['fg', 'text'],
+                  ['dim', 'secondary'],
+                  ['accent', 'accent'],
+                ] as const).map(([key, label]) => {
+                  const overridden = project.colors?.[key] != null
+                  return (
+                    <label key={key} className="color-row">
+                      <input
+                        type="color"
+                        value={project.colors?.[key] || theme.base[key]}
+                        onChange={(e) => setProjectColor(key, e.target.value)}
+                      />
+                      <span>{label}</span>
+                      <code>{overridden ? project.colors?.[key] : 'theme'}</code>
+                      {overridden && (
+                        <button
+                          className="field-remove"
+                          title={`reset ${label} to the theme color`}
+                          onClick={() => setProjectColor(key, undefined)}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </label>
+                  )
+                })}
+              </div>
+              <span className="field-hint">
+                recolor text, secondary chrome and marks across this whole carousel — on top of the
+                “{theme.name}” theme. leave as “theme” to keep its colors.
+              </span>
+            </div>
+          )}
           {selected ? (
             <>
               <label className="pane-label">
@@ -759,6 +837,75 @@ export default function App() {
                           </div>
                         )
                       })()}
+
+                    {/* per-element text color — overrides the palette color */}
+                    {key !== 'image' &&
+                      (() => {
+                        const cur = selected.colors?.[key]
+                        return (
+                          <div className="size-row">
+                            <span className="size-label">color</span>
+                            <button
+                              className={`size-auto ${cur == null ? 'on' : ''}`}
+                              onClick={() => setElementColor(selected.id, key, undefined)}
+                              title="use the theme color"
+                            >
+                              auto
+                            </button>
+                            <input
+                              type="color"
+                              value={cur || theme.base.fg}
+                              onChange={(e) => setElementColor(selected.id, key, e.target.value)}
+                            />
+                            <span className="size-val">{cur ?? 'theme'}</span>
+                          </div>
+                        )
+                      })()}
+
+                    {/* image placement — boxed inline plate, or a full-bleed band */}
+                    {key === 'image' && (
+                      <>
+                        <div className="size-row">
+                          <span className="size-label">placement</span>
+                          {(['inline', 'top', 'bottom'] as ImageMode[]).map((m) => (
+                            <button
+                              key={m}
+                              className={`size-auto ${(selected.imageMode ?? 'inline') === m ? 'on' : ''}`}
+                              onClick={() =>
+                                updateSlide(selected.id, {
+                                  imageMode: m === 'inline' ? undefined : m,
+                                })
+                              }
+                              title={
+                                m === 'inline'
+                                  ? 'boxed plate in the text flow'
+                                  : `full-bleed image pinned to the ${m}`
+                              }
+                            >
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+                        {(selected.imageMode === 'top' || selected.imageMode === 'bottom') && (
+                          <div className="size-row">
+                            <span className="size-label">height</span>
+                            <input
+                              type="range"
+                              min={IMAGE_FRAC_RANGE.min}
+                              max={IMAGE_FRAC_RANGE.max}
+                              step={IMAGE_FRAC_RANGE.step}
+                              value={selected.imageFrac ?? DEFAULT_IMAGE_FRAC}
+                              onChange={(e) =>
+                                updateSlide(selected.id, { imageFrac: Number(e.target.value) })
+                              }
+                            />
+                            <span className="size-val">
+                              {Math.round((selected.imageFrac ?? DEFAULT_IMAGE_FRAC) * 100)}%
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )
               })}

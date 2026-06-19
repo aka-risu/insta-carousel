@@ -1,9 +1,16 @@
 // the structured content model behind the constructor
 
 import { parseCarousel } from './parser'
-import type { Theme } from './tokens'
+import type { Theme, ColorOverrides } from './tokens'
 
 export type SlideType = 'hook' | 'text' | 'fact' | 'quote' | 'diagram' | 'cta'
+
+// how a slide's image is laid out: a boxed inline plate (the default), or a
+// full-bleed band pinned to the top or bottom edge of the slide.
+export type ImageMode = 'inline' | 'top' | 'bottom'
+
+export const DEFAULT_IMAGE_FRAC = 0.45
+export const IMAGE_FRAC_RANGE = { min: 0.3, max: 0.6, step: 0.02 } as const
 
 export type ElementKey =
   | 'stat'
@@ -28,6 +35,12 @@ export interface SlideModel {
   annotations: string // one per line
   /** manual px size per element; missing key = use that element's auto size */
   sizes?: Partial<Record<ElementKey, number>>
+  /** per-element text color override; missing key = use the palette color */
+  colors?: Partial<Record<ElementKey, string>>
+  /** how the image element is placed; undefined = 'inline' (boxed plate) */
+  imageMode?: ImageMode
+  /** fraction of slide height a top/bottom full-bleed image takes */
+  imageFrac?: number
   /** background-plate id for image-backed themes; undefined = cycle by position */
   background?: string
 }
@@ -36,6 +49,8 @@ export interface Project {
   title: string
   themeId: string
   slides: SlideModel[]
+  /** text-color overrides applied on top of the chosen theme */
+  colors?: ColorOverrides
 }
 
 export function newId(): string {
@@ -345,14 +360,30 @@ export function importDesign(raw: string): Project {
         if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'number')
           s.sizes[k as ElementKey] = v
     }
+    if (d.colors && typeof d.colors === 'object') {
+      s.colors = {}
+      for (const [k, v] of Object.entries(d.colors as Record<string, unknown>))
+        if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'string')
+          s.colors[k as ElementKey] = v
+    }
+    if (d.imageMode === 'top' || d.imageMode === 'bottom' || d.imageMode === 'inline')
+      s.imageMode = d.imageMode
+    if (typeof d.imageFrac === 'number') s.imageFrac = d.imageFrac
     if (typeof d.background === 'string') s.background = d.background
     return s
   })
+
+  const colors: ColorOverrides = {}
+  if (data.colors && typeof data.colors === 'object')
+    for (const k of ['fg', 'dim', 'accent'] as const)
+      if (typeof (data.colors as Record<string, unknown>)[k] === 'string')
+        colors[k] = (data.colors as Record<string, string>)[k]
 
   return {
     title: typeof data.title === 'string' ? data.title : '',
     themeId: String(data.theme ?? data.themeId ?? 'journal'),
     slides,
+    ...(colors.fg || colors.dim || colors.accent ? { colors } : {}),
   }
 }
 

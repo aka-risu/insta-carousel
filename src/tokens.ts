@@ -280,10 +280,64 @@ export const THEMES: Theme[] = [
       cta: 'slack tide',
     },
   },
+  {
+    id: 'noir',
+    name: 'noir',
+    // pure black canvas with cream type — meant to pair with a single full-bleed
+    // image pinned to the top or bottom of the slide (set per-slide via image
+    // placement). no texture, no inner frame; the photo carries all the weight.
+    base: {
+      bg: '#0A0A0A',
+      fg: '#F4EEDD',
+      dim: '#8C8579',
+      accent: '#C2A878',
+      texture: 'none',
+      mat: '#0A0A0A',
+    },
+    // black stays black on the cta — nothing to invert against
+    inverted: {
+      bg: '#0A0A0A',
+      fg: '#F4EEDD',
+      dim: '#8C8579',
+      accent: '#C2A878',
+      texture: 'none',
+      mat: '#0A0A0A',
+    },
+    labels: {
+      hook: (no) => `no. ${no}`,
+      section: (n) => `${n}.`,
+      diagram: (n) => `plate ${n}`,
+      quote: 'aside',
+      cta: 'the end',
+    },
+  },
 ]
 
 export function themeById(id: string): Theme {
   return THEMES.find((t) => t.id === id) ?? THEMES[0]
+}
+
+// ── per-project text-color overrides ─────────────────────────
+// optional overrides applied on top of ANY theme (built-in or custom) so the
+// user can recolor text/chrome/marks without leaving their chosen theme. only
+// the text-bearing palette keys are overridable; the page color stays the
+// theme's own (the custom theme owns its paper/bg through its dedicated UI).
+
+export interface ColorOverrides {
+  fg?: string
+  dim?: string
+  accent?: string
+}
+
+export function applyColorOverrides(theme: Theme, c?: ColorOverrides): Theme {
+  if (!c || (!c.fg && !c.dim && !c.accent)) return theme
+  const apply = (p: Palette): Palette => ({
+    ...p,
+    fg: c.fg || p.fg,
+    dim: c.dim || p.dim,
+    accent: c.accent || p.accent,
+  })
+  return { ...theme, base: apply(theme.base), inverted: apply(theme.inverted) }
 }
 
 // ── custom theme ─────────────────────────────────────────────

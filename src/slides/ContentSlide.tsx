@@ -37,6 +37,9 @@ export function ContentSlide({
   const preset = PRESETS[type] ?? PRESETS.text
   const centered = preset.align === 'center'
 
+  // a per-element color override beats the palette default when set
+  const colorFor = (key: ElementKey, fallback: string) => slide.colors?.[key] || fallback
+
   // render each present element in the slide's own order (drag-reorderable)
   const renderEl = (key: ElementKey): ReactNode => {
     switch (key) {
@@ -50,7 +53,7 @@ export function ContentSlide({
               fontWeight: 600,
               lineHeight: 1,
               letterSpacing: '-0.02em',
-              color: p.fg,
+              color: colorFor('stat', p.fg),
             }}
           >
             {slide.stat}
@@ -69,7 +72,7 @@ export function ContentSlide({
               whiteSpace: 'pre-wrap',
               maxWidth: 920,
               letterSpacing: type === 'hook' ? '-0.005em' : undefined,
-              color: p.fg,
+              color: colorFor('text', p.fg),
             }}
           >
             <RichText text={slide.text} p={p} />
@@ -89,7 +92,7 @@ export function ContentSlide({
                   lineHeight: 1.85,
                   letterSpacing: '0.16em',
                   whiteSpace: 'pre-wrap',
-                  color: p.accent,
+                  color: colorFor('sub', p.accent),
                 }}
               >
                 {slide.sub.split('\n').filter((l) => l.trim()).join('\n')}
@@ -106,7 +109,7 @@ export function ContentSlide({
               fontSize: sizeFor(slide, 'sub'),
               letterSpacing: '0.2em',
               whiteSpace: 'pre-wrap',
-              color: p.dim,
+              color: colorFor('sub', p.dim),
             }}
           >
             {type === 'hook' ? <>{slide.sub || 'keep reading'}&nbsp;&nbsp;→</> : slide.sub}
@@ -114,6 +117,8 @@ export function ContentSlide({
         )
       case 'image': {
         if (!slide.image) return null
+        // a top/bottom image is drawn full-bleed by the slide frame, not here
+        if (slide.imageMode === 'top' || slide.imageMode === 'bottom') return null
         const url = assets[slide.image]
         return url ? (
           <div
@@ -162,7 +167,7 @@ export function ContentSlide({
               fontWeight: 500,
               fontSize: sizeFor(slide, 'def'),
               lineHeight: 1.45,
-              color: p.dim,
+              color: colorFor('def', p.dim),
               maxWidth: 760,
               whiteSpace: 'pre-wrap',
               textAlign: 'left',
@@ -181,7 +186,7 @@ export function ContentSlide({
               fontWeight: 500,
               fontSize: sizeFor(slide, 'attribution'),
               letterSpacing: '0.18em',
-              color: p.dim,
+              color: colorFor('attribution', p.dim),
             }}
           >
             — {slide.attribution}
