@@ -30,10 +30,10 @@ import {
   applyColorOverrides,
 } from './tokens'
 import type { CustomThemeData, ColorOverrides } from './tokens'
-import { Slide } from './slides/Slide'
 import { exportCarousel } from './exporter'
 import { Inspector } from './editor/Inspector'
 import { Filmstrip } from './editor/Filmstrip'
+import { Canvas } from './editor/Canvas'
 import { SEED_PROJECT, templateProject } from './seed'
 import sealPlateUrl from './assets/seal-plate.jpg'
 import './App.css'
@@ -49,9 +49,6 @@ const CURRENT_KEY = 'antara-carousel-current' // id of the loaded saved design
 const CUSTOM_KEY = 'antara-carousel-custom' // the user's custom theme (image + colors)
 const IMAGES_KEY = 'antara-carousel-images' // user-uploaded images, as data urls (persisted)
 const LEGACY_KEY = 'antara-carousel-draft'
-const PREVIEW_W = 340
-const SCALE = PREVIEW_W / layout.slideW
-
 // a saved carousel in the library — content + theme only (uploaded image bytes
 // stay session-only, same as the working draft)
 interface SavedDesign {
@@ -780,6 +777,23 @@ export default function App() {
           />
         </section>
 
+        {/* ── canvas ── */}
+        <section className="preview-pane">
+          <Canvas
+            slide={selected}
+            index={selected ? project.slides.findIndex((s) => s.id === selected.id) : 0}
+            total={project.slides.length}
+            microLabel={selected ? labels[project.slides.findIndex((s) => s.id === selected.id)] : ''}
+            theme={theme}
+            assets={assets}
+            selectedElement={activeElement}
+            onSelectElement={(key) => setSelectedElement(key)}
+            onDeselect={() => setSelectedElement(null)}
+            onElementPointerDown={onElementPointerDown}
+            onResizePointerDown={onElementResizeStart}
+          />
+        </section>
+
         {/* ── editor ── */}
         <section className="editor-pane">
           <Inspector
@@ -818,65 +832,6 @@ export default function App() {
             onCloseElement={() => setSelectedElement(null)}
             addElement={addElement}
           />
-        </section>
-
-        {/* ── previews ── */}
-        <section className="preview-pane">
-          {project.slides.length === 0 && (
-            <p className="empty-note">no slides yet — add one on the left</p>
-          )}
-          <div className="preview-grid">
-            {project.slides.map((slide, i) => (
-              <figure
-                key={slide.id}
-                className={`preview-card ${slide.id === selectedId ? 'selected' : ''}`}
-                onClick={() => {
-                  setSelectedId(slide.id)
-                  setSelectedElement(null)
-                }}
-              >
-                <div
-                  className="preview-frame"
-                  style={{ width: PREVIEW_W, height: Math.round(layout.slideH * SCALE) }}
-                >
-                  {/* full-size slide, scaled down — same component as export */}
-                  <div
-                    data-slide-canvas
-                    style={{
-                      width: layout.slideW,
-                      height: layout.slideH,
-                      transform: `scale(${SCALE})`,
-                      transformOrigin: 'top left',
-                    }}
-                  >
-                    <Slide
-                      slide={slide}
-                      microLabel={labels[i]}
-                      index={i}
-                      total={project.slides.length}
-                      theme={theme}
-                      assets={assets}
-                      selectedElement={slide.id === selectedId ? activeElement : null}
-                      onSelectElement={(key) => {
-                        setSelectedId(slide.id)
-                        setSelectedElement(key)
-                      }}
-                      // drag-to-position / resize are wired only for the selected slide
-                      onElementPointerDown={
-                        slide.id === selectedId ? onElementPointerDown : undefined
-                      }
-                      onResizePointerDown={
-                        slide.id === selectedId ? onElementResizeStart : undefined
-                      }
-                    />
-                  </div>
-                </div>
-                <figcaption>
-                  {String(i + 1).padStart(2, '0')} · {slide.type}
-                </figcaption>
-              </figure>
-            ))}
-          </div>
         </section>
       </main>
 
