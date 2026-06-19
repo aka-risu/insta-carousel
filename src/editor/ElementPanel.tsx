@@ -36,7 +36,7 @@ export function ElementPanel(props: ElementPanelProps) {
   const def = elementDef(slide.type, key)
 
   return (
-    <div className="field selected-el">
+    <div className="field">
       <span className="field-label">
         {def.label}
         <button
