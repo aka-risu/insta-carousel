@@ -2,23 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import type {
   ElementKey,
-  ImageMode,
   Project,
   SlideModel,
   SlideOverlay,
   SlideType,
   TextBacking,
-  TextBgStyle,
 } from './model'
 import {
   AVAILABLE_ELEMENTS,
   DEFAULT_FREE_POS,
-  DEFAULT_IMAGE_FRAC,
-  IMAGE_FRAC_RANGE,
   SIZE_RANGE,
   SLIDE_TYPES,
   SLIDE_TYPE_ORDER,
-  autoSize,
   elementDef,
   ensureElements,
   fromLegacyMarkdown,
@@ -43,6 +38,7 @@ import { Slide } from './slides/Slide'
 import { exportCarousel } from './exporter'
 import { CarouselPanel } from './editor/CarouselPanel'
 import { SlidePanel } from './editor/SlidePanel'
+import { ElementPanel } from './editor/ElementPanel'
 import { SEED_PROJECT, templateProject } from './seed'
 import sealPlateUrl from './assets/seal-plate.jpg'
 import './App.css'
@@ -60,9 +56,6 @@ const IMAGES_KEY = 'antara-carousel-images' // user-uploaded images, as data url
 const LEGACY_KEY = 'antara-carousel-draft'
 const PREVIEW_W = 340
 const SCALE = PREVIEW_W / layout.slideW
-
-// every element except the image plate gets a manual size slider
-const hasSizeControl = (k: ElementKey): boolean => k !== 'image'
 
 // a saved carousel in the library — content + theme only (uploaded image bytes
 // stay session-only, same as the working draft)
@@ -169,8 +162,6 @@ export default function App() {
   const [exporting, setExporting] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importText, setImportText] = useState('')
-  const [dragEl, setDragEl] = useState<{ id: string; idx: number } | null>(null)
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
   const [designs, setDesigns] = useState<SavedDesign[]>(loadDesigns)
   const [currentDesignId, setCurrentDesignId] = useState<string | null>(
     () => localStorage.getItem(CURRENT_KEY),
@@ -229,12 +220,6 @@ export default function App() {
     selected && selectedElement && selected.elements.includes(selectedElement)
       ? selectedElement
       : null
-
-  // scroll the matching editor card into view when an element is picked on a slide
-  const selectedCardRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    selectedCardRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [activeElement])
 
   // ── project mutations ──────────────────────────────────────
   const patch = useCallback((fn: (p: Project) => Project) => {
@@ -340,22 +325,6 @@ export default function App() {
         else colors[key] = value
         return { ...p, colors }
       }),
-    [patch],
-  )
-
-  // drag-reorder an element within a slide's stack
-  const moveElement = useCallback(
-    (id: string, from: number, to: number) =>
-      patch((p) => ({
-        ...p,
-        slides: p.slides.map((s) => {
-          if (s.id !== id || from === to || to < 0 || to >= s.elements.length) return s
-          const elements = [...s.elements]
-          const [moved] = elements.splice(from, 1)
-          elements.splice(to, 0, moved)
-          return { ...s, elements }
-        }),
-      })),
     [patch],
   )
 
@@ -857,350 +826,97 @@ export default function App() {
           />
           {selected ? (
             <>
-              <SlidePanel
-                slide={selected}
-                theme={theme}
-                assets={assets}
-                patch={patch}
-                updateSlide={updateSlide}
-                setOverlay={setOverlay}
-                addFiles={addFiles}
-              />
+              {activeElement ? (
+                <ElementPanel
+                  slide={selected}
+                  elementKey={activeElement}
+                  theme={theme}
+                  assets={assets}
+                  bodyRef={bodyRef}
+                  updateSlide={updateSlide}
+                  removeElement={removeElement}
+                  setSize={setSize}
+                  setElementColor={setElementColor}
+                  setTextBg={setTextBg}
+                  wrapSelection={wrapSelection}
+                  onClose={() => setSelectedElement(null)}
+                />
+              ) : (
+                <>
+                  <SlidePanel
+                    slide={selected}
+                    theme={theme}
+                    assets={assets}
+                    patch={patch}
+                    updateSlide={updateSlide}
+                    setOverlay={setOverlay}
+                    addFiles={addFiles}
+                  />
 
-              {selected.type !== 'diagram' && (
-                <div className="field">
-                  <span className="field-label">layout</span>
-                  <div className="size-row">
-                    <button
-                      className={`size-auto ${!selected.free ? 'on' : ''}`}
-                      onClick={() => resetLayout(selected.id)}
-                      title="auto-stack the elements (clears free positions)"
-                    >
-                      auto
-                    </button>
-                    <button
-                      className="mark-btn"
-                      onClick={copyLayout}
-                      disabled={!selected.free}
-                      title="copy this slide's element positions"
-                    >
-                      copy
-                    </button>
-                    <button
-                      className="mark-btn"
-                      onClick={() => pasteLayout(selected.id)}
-                      disabled={!layoutClip}
-                      title="paste the copied positions onto this slide"
-                    >
-                      paste
-                    </button>
-                    <button
-                      className="mark-btn"
-                      onClick={applyLayoutToAll}
-                      disabled={!selected.free}
-                      title="apply this slide's layout to every other slide"
-                    >
-                      apply to all
-                    </button>
-                  </div>
-                  <span className="field-hint">
-                    drag any element on the slide preview to place it freely. “auto” returns to
-                    automatic stacking.
-                  </span>
-                </div>
-              )}
-
-              <span className="field-hint drag-hint">drag the ⠿ handle to reorder elements on the slide</span>
-              {selected.elements.map((key, idx) => {
-                const def = elementDef(selected.type, key)
-                return (
-                  <div
-                    className={`field draggable ${dragEl?.id === selected.id && dragEl.idx === idx ? 'dragging-el' : ''} ${dragOverIdx === idx ? 'drag-over' : ''} ${activeElement === key ? 'selected-el' : ''}`}
-                    key={key}
-                    ref={activeElement === key ? selectedCardRef : undefined}
-                    // clicking anywhere in the card selects this element (and
-                    // highlights it on the slide)
-                    onClick={() => setSelectedElement(key)}
-                    // only the handle starts a drag; the card is just the drop target,
-                    // so the slider / textarea inside stay fully interactive
-                    onDragOver={(e) => {
-                      if (!dragEl) return
-                      e.preventDefault()
-                      setDragOverIdx(idx)
-                    }}
-                    onDrop={() => {
-                      if (dragEl && dragEl.id === selected.id) moveElement(selected.id, dragEl.idx, idx)
-                      setDragEl(null)
-                      setDragOverIdx(null)
-                    }}
-                  >
-                    <span className="field-label">
-                      <span
-                        className="drag-handle"
-                        title="drag to reorder"
-                        draggable
-                        onDragStart={() => setDragEl({ id: selected.id, idx })}
-                        onDragEnd={() => {
-                          setDragEl(null)
-                          setDragOverIdx(null)
-                        }}
-                      >
-                        ⠿
-                      </span>
-                      {def.label}
-                      <button
-                        className="field-remove"
-                        title={`remove ${def.label} from this slide`}
-                        onClick={() => removeElement(selected.id, key)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                    {def.asset ? (
-                      <select
-                        value={selected[key]}
-                        onChange={(e) => updateSlide(selected.id, { [key]: e.target.value })}
-                      >
-                        <option value="">( none )</option>
-                        {Object.keys(assets).map((name) => (
-                          <option key={name} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                        {selected[key] && !assets[selected[key]] && (
-                          <option value={selected[key]}>⚠ {selected[key]} (missing)</option>
-                        )}
-                      </select>
-                    ) : def.multiline ? (
-                      <textarea
-                        ref={key === 'text' ? bodyRef : undefined}
-                        rows={3}
-                        value={selected[key]}
-                        onChange={(e) => updateSlide(selected.id, { [key]: e.target.value })}
-                      />
-                    ) : (
-                      <input
-                        value={selected[key]}
-                        onChange={(e) => updateSlide(selected.id, { [key]: e.target.value })}
-                      />
-                    )}
-                    <span className="field-hint">{def.hint}</span>
-
-                    {/* emphasis marks — select a word in the body, then click */}
-                    {key === 'text' && (
-                      <div className="marks-row">
-                        <span className="size-label">mark selection</span>
-                        <button className="mark-btn" title="pen circle around the selected words" onClick={() => wrapSelection('*', '*')}>
-                          ◯ circle
+                  {selected.type !== 'diagram' && (
+                    <div className="field">
+                      <span className="field-label">layout</span>
+                      <div className="size-row">
+                        <button
+                          className={`size-auto ${!selected.free ? 'on' : ''}`}
+                          onClick={() => resetLayout(selected.id)}
+                          title="auto-stack the elements (clears free positions)"
+                        >
+                          auto
                         </button>
-                        <button className="mark-btn" title="underline the selected words" onClick={() => wrapSelection('_', '_')}>
-                          <u>underline</u>
+                        <button
+                          className="mark-btn"
+                          onClick={copyLayout}
+                          disabled={!selected.free}
+                          title="copy this slide's element positions"
+                        >
+                          copy
                         </button>
-                        <button className="mark-btn" title="highlighter over the selected words" onClick={() => wrapSelection('==', '==')}>
-                          <span className="mark-hl">highlight</span>
+                        <button
+                          className="mark-btn"
+                          onClick={() => pasteLayout(selected.id)}
+                          disabled={!layoutClip}
+                          title="paste the copied positions onto this slide"
+                        >
+                          paste
+                        </button>
+                        <button
+                          className="mark-btn"
+                          onClick={applyLayoutToAll}
+                          disabled={!selected.free}
+                          title="apply this slide's layout to every other slide"
+                        >
+                          apply to all
                         </button>
                       </div>
-                    )}
+                      <span className="field-hint">
+                        drag any element on the slide preview to place it freely. "auto" returns to
+                        automatic stacking.
+                      </span>
+                    </div>
+                  )}
 
-                    {/* manual size control — available on every text element */}
-                    {hasSizeControl(key) &&
-                      (() => {
-                        const range = SIZE_RANGE[key]
-                        const current = selected.sizes?.[key] ?? autoSize(selected, key)
-                        const isAuto = selected.sizes?.[key] == null
-                        return (
-                          <div className="size-row">
-                            <span className="size-label">size</span>
+                  {AVAILABLE_ELEMENTS[selected.type].filter((k) => !selected.elements.includes(k))
+                    .length > 0 && (
+                    <div className="field">
+                      <span className="field-label">add element</span>
+                      <div className="add-row">
+                        {AVAILABLE_ELEMENTS[selected.type]
+                          .filter((k) => !selected.elements.includes(k))
+                          .map((k) => (
                             <button
-                              className={`size-auto ${isAuto ? 'on' : ''}`}
-                              onClick={() => setSize(selected.id, key, undefined)}
-                              title="automatic size"
+                              key={k}
+                              className="add-chip"
+                              title={elementDef(selected.type, k).hint}
+                              onClick={() => addElement(selected.id, k)}
                             >
-                              auto
-                            </button>
-                            <input
-                              type="range"
-                              min={range.min}
-                              max={range.max}
-                              step={range.step}
-                              value={current}
-                              onChange={(e) => setSize(selected.id, key, Number(e.target.value))}
-                            />
-                            <span className="size-val">{current}px</span>
-                          </div>
-                        )
-                      })()}
-
-                    {/* per-element text color — overrides the palette color */}
-                    {key !== 'image' &&
-                      (() => {
-                        const cur = selected.colors?.[key]
-                        return (
-                          <div className="size-row">
-                            <span className="size-label">color</span>
-                            <button
-                              className={`size-auto ${cur == null ? 'on' : ''}`}
-                              onClick={() => setElementColor(selected.id, key, undefined)}
-                              title="use the theme color"
-                            >
-                              auto
-                            </button>
-                            <input
-                              type="color"
-                              value={cur || theme.base.fg}
-                              onChange={(e) => setElementColor(selected.id, key, e.target.value)}
-                            />
-                            <span className="size-val">{cur ?? 'theme'}</span>
-                          </div>
-                        )
-                      })()}
-
-                    {/* per-element text backing plate — legibility on busy images */}
-                    {key !== 'image' &&
-                      (() => {
-                        const tb = selected.textBg?.[key]
-                        const styles: TextBgStyle[] = ['box', 'pill', 'highlight', 'band']
-                        const tokens = ['paper', 'accent', 'fg', 'dim'] as const
-                        return (
-                          <>
-                            <div className="size-row">
-                              <span className="size-label">backing</span>
-                              <button
-                                className={`size-auto ${!tb ? 'on' : ''}`}
-                                onClick={() => setTextBg(selected.id, key, undefined)}
-                                title="no backing"
-                              >
-                                off
-                              </button>
-                              {styles.map((st) => (
-                                <button
-                                  key={st}
-                                  className={`size-auto ${tb?.style === st ? 'on' : ''}`}
-                                  onClick={() =>
-                                    setTextBg(selected.id, key, {
-                                      style: st,
-                                      color: tb?.color ?? 'paper',
-                                      opacity: tb?.opacity ?? 1,
-                                    })
-                                  }
-                                >
-                                  {st}
-                                </button>
-                              ))}
-                            </div>
-                            {tb && (
-                              <>
-                                <div className="size-row">
-                                  <span className="size-label">plate</span>
-                                  {tokens.map((tok) => (
-                                    <button
-                                      key={tok}
-                                      className={`size-auto ${tb.color === tok ? 'on' : ''}`}
-                                      onClick={() => setTextBg(selected.id, key, { ...tb, color: tok })}
-                                    >
-                                      {tok}
-                                    </button>
-                                  ))}
-                                  <input
-                                    type="color"
-                                    value={tb.color.startsWith('#') ? tb.color : '#ffffff'}
-                                    onChange={(e) =>
-                                      setTextBg(selected.id, key, { ...tb, color: e.target.value })
-                                    }
-                                  />
-                                </div>
-                                <div className="size-row">
-                                  <span className="size-label">opacity</span>
-                                  <input
-                                    type="range"
-                                    min={0}
-                                    max={1}
-                                    step={0.05}
-                                    value={tb.opacity ?? 1}
-                                    onChange={(e) =>
-                                      setTextBg(selected.id, key, {
-                                        ...tb,
-                                        opacity: Number(e.target.value),
-                                      })
-                                    }
-                                  />
-                                  <span className="size-val">
-                                    {Math.round((tb.opacity ?? 1) * 100)}%
-                                  </span>
-                                </div>
-                              </>
-                            )}
-                          </>
-                        )
-                      })()}
-
-                    {/* image placement — boxed inline plate, or a full-bleed band */}
-                    {key === 'image' && (
-                      <>
-                        <div className="size-row">
-                          <span className="size-label">placement</span>
-                          {(['inline', 'top', 'bottom'] as ImageMode[]).map((m) => (
-                            <button
-                              key={m}
-                              className={`size-auto ${(selected.imageMode ?? 'inline') === m ? 'on' : ''}`}
-                              onClick={() =>
-                                updateSlide(selected.id, {
-                                  imageMode: m === 'inline' ? undefined : m,
-                                })
-                              }
-                              title={
-                                m === 'inline'
-                                  ? 'boxed plate in the text flow'
-                                  : `full-bleed image pinned to the ${m}`
-                              }
-                            >
-                              {m}
+                              + {elementDef(selected.type, k).label}
                             </button>
                           ))}
-                        </div>
-                        {(selected.imageMode === 'top' || selected.imageMode === 'bottom') && (
-                          <div className="size-row">
-                            <span className="size-label">height</span>
-                            <input
-                              type="range"
-                              min={IMAGE_FRAC_RANGE.min}
-                              max={IMAGE_FRAC_RANGE.max}
-                              step={IMAGE_FRAC_RANGE.step}
-                              value={selected.imageFrac ?? DEFAULT_IMAGE_FRAC}
-                              onChange={(e) =>
-                                updateSlide(selected.id, { imageFrac: Number(e.target.value) })
-                              }
-                            />
-                            <span className="size-val">
-                              {Math.round((selected.imageFrac ?? DEFAULT_IMAGE_FRAC) * 100)}%
-                            </span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-
-              {AVAILABLE_ELEMENTS[selected.type].filter((k) => !selected.elements.includes(k))
-                .length > 0 && (
-                <div className="field">
-                  <span className="field-label">add element</span>
-                  <div className="add-row">
-                    {AVAILABLE_ELEMENTS[selected.type]
-                      .filter((k) => !selected.elements.includes(k))
-                      .map((k) => (
-                        <button
-                          key={k}
-                          className="add-chip"
-                          title={elementDef(selected.type, k).hint}
-                          onClick={() => addElement(selected.id, k)}
-                        >
-                          + {elementDef(selected.type, k).label}
-                        </button>
-                      ))}
-                  </div>
-                </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </>
           ) : (
