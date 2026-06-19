@@ -375,6 +375,7 @@ export default function App() {
     origX: number
     origY: number
     moved: boolean
+    scale: number
   } | null>(null)
 
   const onElementPointerDown = useCallback(
@@ -386,6 +387,9 @@ export default function App() {
       const root = wrapper.closest('[data-content-root]') as HTMLElement | null
       if (!canvas || !root) return
       const rootRect = root.getBoundingClientRect()
+      // the slide may render at any size (small filmstrip thumb or big canvas);
+      // derive the live scale from the rendered width instead of a fixed constant
+      const scale = canvas.getBoundingClientRect().width / layout.slideW
 
       // seed every element: keep any already-pinned positions, measure the rest
       // from their current on-screen spot (divided back out of the preview scale)
@@ -395,8 +399,8 @@ export default function App() {
         if (seed[k]) return
         const r = el.getBoundingClientRect()
         seed[k] = {
-          x: Math.round((r.left - rootRect.left) / SCALE),
-          y: Math.round((r.top - rootRect.top) / SCALE),
+          x: Math.round((r.left - rootRect.left) / scale),
+          y: Math.round((r.top - rootRect.top) / scale),
         }
       })
 
@@ -410,6 +414,7 @@ export default function App() {
         origX: start.x,
         origY: start.y,
         moved: false,
+        scale,
       }
       setSelectedElement(key)
 
@@ -427,8 +432,8 @@ export default function App() {
           positions: {
             ...d.seed,
             [d.key]: {
-              x: Math.round(d.origX + dxPx / SCALE),
-              y: Math.round(d.origY + dyPx / SCALE),
+              x: Math.round(d.origX + dxPx / d.scale),
+              y: Math.round(d.origY + dyPx / d.scale),
             },
           },
         })
