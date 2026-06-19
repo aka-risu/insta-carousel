@@ -9,12 +9,10 @@ import type {
   TextBacking,
 } from './model'
 import {
-  AVAILABLE_ELEMENTS,
   DEFAULT_FREE_POS,
   SIZE_RANGE,
   SLIDE_TYPES,
   SLIDE_TYPE_ORDER,
-  elementDef,
   ensureElements,
   fromLegacyMarkdown,
   importDesign,
@@ -36,9 +34,7 @@ import {
 import type { CustomThemeData, ColorOverrides } from './tokens'
 import { Slide } from './slides/Slide'
 import { exportCarousel } from './exporter'
-import { CarouselPanel } from './editor/CarouselPanel'
-import { SlidePanel } from './editor/SlidePanel'
-import { ElementPanel } from './editor/ElementPanel'
+import { Inspector } from './editor/Inspector'
 import { SEED_PROJECT, templateProject } from './seed'
 import sealPlateUrl from './assets/seal-plate.jpg'
 import './App.css'
@@ -806,7 +802,9 @@ export default function App() {
 
         {/* ── editor ── */}
         <section className="editor-pane">
-          <CarouselPanel
+          <Inspector
+            selected={selected}
+            activeElement={activeElement}
             project={project}
             theme={theme}
             custom={custom}
@@ -823,106 +821,23 @@ export default function App() {
             storageFull={storageFull}
             addFiles={addFiles}
             removeAsset={removeAsset}
+            patch={patch}
+            updateSlide={updateSlide}
+            setOverlay={setOverlay}
+            layoutClip={layoutClip}
+            resetLayout={resetLayout}
+            copyLayout={copyLayout}
+            pasteLayout={pasteLayout}
+            applyLayoutToAll={applyLayoutToAll}
+            bodyRef={bodyRef}
+            removeElement={removeElement}
+            setSize={setSize}
+            setElementColor={setElementColor}
+            setTextBg={setTextBg}
+            wrapSelection={wrapSelection}
+            onCloseElement={() => setSelectedElement(null)}
+            addElement={addElement}
           />
-          {selected ? (
-            <>
-              {activeElement ? (
-                <ElementPanel
-                  slide={selected}
-                  elementKey={activeElement}
-                  theme={theme}
-                  assets={assets}
-                  bodyRef={bodyRef}
-                  updateSlide={updateSlide}
-                  removeElement={removeElement}
-                  setSize={setSize}
-                  setElementColor={setElementColor}
-                  setTextBg={setTextBg}
-                  wrapSelection={wrapSelection}
-                  onClose={() => setSelectedElement(null)}
-                />
-              ) : (
-                <>
-                  <SlidePanel
-                    slide={selected}
-                    theme={theme}
-                    assets={assets}
-                    patch={patch}
-                    updateSlide={updateSlide}
-                    setOverlay={setOverlay}
-                    addFiles={addFiles}
-                  />
-
-                  {selected.type !== 'diagram' && (
-                    <div className="field">
-                      <span className="field-label">layout</span>
-                      <div className="size-row">
-                        <button
-                          className={`size-auto ${!selected.free ? 'on' : ''}`}
-                          onClick={() => resetLayout(selected.id)}
-                          title="auto-stack the elements (clears free positions)"
-                        >
-                          auto
-                        </button>
-                        <button
-                          className="mark-btn"
-                          onClick={copyLayout}
-                          disabled={!selected.free}
-                          title="copy this slide's element positions"
-                        >
-                          copy
-                        </button>
-                        <button
-                          className="mark-btn"
-                          onClick={() => pasteLayout(selected.id)}
-                          disabled={!layoutClip}
-                          title="paste the copied positions onto this slide"
-                        >
-                          paste
-                        </button>
-                        <button
-                          className="mark-btn"
-                          onClick={applyLayoutToAll}
-                          disabled={!selected.free}
-                          title="apply this slide's layout to every other slide"
-                        >
-                          apply to all
-                        </button>
-                      </div>
-                      <span className="field-hint">
-                        drag any element on the slide preview to place it freely. "auto" returns to
-                        automatic stacking.
-                      </span>
-                    </div>
-                  )}
-
-                  {AVAILABLE_ELEMENTS[selected.type].filter((k) => !selected.elements.includes(k))
-                    .length > 0 && (
-                    <div className="field">
-                      <span className="field-label">add element</span>
-                      <div className="add-row">
-                        {AVAILABLE_ELEMENTS[selected.type]
-                          .filter((k) => !selected.elements.includes(k))
-                          .map((k) => (
-                            <button
-                              key={k}
-                              className="add-chip"
-                              title={elementDef(selected.type, k).hint}
-                              onClick={() => addElement(selected.id, k)}
-                            >
-                              + {elementDef(selected.type, k).label}
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          ) : (
-            <p className="empty-note">add a slide to start</p>
-          )}
-
         </section>
 
         {/* ── previews ── */}
