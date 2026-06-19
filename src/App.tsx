@@ -11,8 +11,6 @@ import type {
 import {
   DEFAULT_FREE_POS,
   SIZE_RANGE,
-  SLIDE_TYPES,
-  SLIDE_TYPE_ORDER,
   ensureElements,
   fromLegacyMarkdown,
   importDesign,
@@ -35,6 +33,7 @@ import type { CustomThemeData, ColorOverrides } from './tokens'
 import { Slide } from './slides/Slide'
 import { exportCarousel } from './exporter'
 import { Inspector } from './editor/Inspector'
+import { Filmstrip } from './editor/Filmstrip'
 import { SEED_PROJECT, templateProject } from './seed'
 import sealPlateUrl from './assets/seal-plate.jpg'
 import './App.css'
@@ -767,37 +766,18 @@ export default function App() {
       <main className="workspace">
         {/* ── slide list ── */}
         <section className="list-pane">
-          <label className="pane-label">slides</label>
-          <div className="slide-list">
-            {project.slides.map((s, i) => (
-              <div
-                key={s.id}
-                className={`slide-row ${s.id === selectedId ? 'selected' : ''}`}
-                onClick={() => setSelectedId(s.id)}
-              >
-                <span className="slide-row-no">{String(i + 1).padStart(2, '0')}</span>
-                <span className="slide-row-type">{SLIDE_TYPES[s.type].name}</span>
-                <span className="slide-row-peek">
-                  {(s.text || s.stat || s.image || '…').split('\n')[0]}
-                </span>
-                <span className="slide-row-actions" onClick={(e) => e.stopPropagation()}>
-                  <button title="move up" disabled={i === 0} onClick={() => moveSlide(s.id, -1)}>↑</button>
-                  <button title="move down" disabled={i === project.slides.length - 1} onClick={() => moveSlide(s.id, 1)}>↓</button>
-                  <button title="duplicate" onClick={() => duplicateSlide(s.id)}>⧉</button>
-                  <button title="delete" onClick={() => removeSlide(s.id)}>×</button>
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <label className="pane-label">add slide</label>
-          <div className="add-row">
-            {SLIDE_TYPE_ORDER.map((t) => (
-              <button key={t} className="add-chip" onClick={() => addSlide(t)} title={SLIDE_TYPES[t].about}>
-                + {t}
-              </button>
-            ))}
-          </div>
+          <Filmstrip
+            slides={project.slides}
+            selectedId={selectedId}
+            labels={labels}
+            theme={theme}
+            assets={assets}
+            onSelect={(id) => { setSelectedId(id); setSelectedElement(null) }}
+            onMove={moveSlide}
+            onDuplicate={duplicateSlide}
+            onRemove={removeSlide}
+            onAdd={addSlide}
+          />
         </section>
 
         {/* ── editor ── */}
