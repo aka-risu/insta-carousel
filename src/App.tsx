@@ -27,7 +27,6 @@ import {
   microLabels,
   newSlide,
   referencedAssets,
-  retype,
   sizeFor,
 } from './model'
 import {
@@ -43,6 +42,7 @@ import type { CustomThemeData, ColorOverrides } from './tokens'
 import { Slide } from './slides/Slide'
 import { exportCarousel } from './exporter'
 import { CarouselPanel } from './editor/CarouselPanel'
+import { SlidePanel } from './editor/SlidePanel'
 import { SEED_PROJECT, templateProject } from './seed'
 import sealPlateUrl from './assets/seal-plate.jpg'
 import './App.css'
@@ -179,7 +179,6 @@ export default function App() {
   const [showNewPrompt, setShowNewPrompt] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [custom, setCustom] = useState<CustomThemeData>(loadCustom)
-  const bgInput = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -858,31 +857,15 @@ export default function App() {
           />
           {selected ? (
             <>
-              <label className="pane-label">
-                editing · {SLIDE_TYPES[selected.type].name}
-              </label>
-              <p className="type-about">{SLIDE_TYPES[selected.type].about}</p>
-
-              <div className="field">
-                <span className="field-label">slide type</span>
-                <select
-                  value={selected.type}
-                  onChange={(e) =>
-                    patch((p) => ({
-                      ...p,
-                      slides: p.slides.map((s) =>
-                        s.id === selected.id ? retype(s, e.target.value as SlideType) : s,
-                      ),
-                    }))
-                  }
-                >
-                  {SLIDE_TYPE_ORDER.map((t) => (
-                    <option key={t} value={t}>
-                      {t} — {SLIDE_TYPES[t].about}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SlidePanel
+                slide={selected}
+                theme={theme}
+                assets={assets}
+                patch={patch}
+                updateSlide={updateSlide}
+                setOverlay={setOverlay}
+                addFiles={addFiles}
+              />
 
               {selected.type !== 'diagram' && (
                 <div className="field">
@@ -926,134 +909,6 @@ export default function App() {
                   </span>
                 </div>
               )}
-
-              {theme.backgrounds && (
-                <div className="field">
-                  <span className="field-label">background plate</span>
-                  <select
-                    value={selected.background ?? ''}
-                    onChange={(e) =>
-                      updateSlide(selected.id, { background: e.target.value || undefined })
-                    }
-                  >
-                    <option value="">auto (by position)</option>
-                    {theme.backgrounds.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="field-hint">
-                    each slide cycles through the chart plates unless you pin one here
-                  </span>
-                </div>
-              )}
-
-              {/* per-slide background image + overlay — works on any theme */}
-              <div className="field">
-                <span className="field-label">slide background</span>
-                <select
-                  value={selected.bgImage ?? ''}
-                  onChange={(e) =>
-                    updateSlide(selected.id, { bgImage: e.target.value || undefined })
-                  }
-                >
-                  <option value="">none (use theme)</option>
-                  {Object.keys(assets).map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                  {selected.bgImage && !assets[selected.bgImage] && (
-                    <option value={selected.bgImage}>⚠ {selected.bgImage} (missing)</option>
-                  )}
-                </select>
-                <div className="add-row">
-                  <button className="add-chip" onClick={() => bgInput.current?.click()}>
-                    + upload image
-                  </button>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={bgInput}
-                    style={{ display: 'none' }}
-                    onChange={(e) => {
-                      if (e.target.files?.length)
-                        void addFiles(e.target.files, (names) =>
-                          updateSlide(selected.id, { bgImage: names[0] }),
-                        )
-                      e.target.value = ''
-                    }}
-                  />
-                </div>
-                <span className="field-hint">
-                  a full-slide photo behind everything — reuse an uploaded image or add one
-                </span>
-
-                <div className="size-row">
-                  <span className="size-label">overlay</span>
-                  <button
-                    className={`size-auto ${!selected.overlay ? 'on' : ''}`}
-                    onClick={() => setOverlay(selected.id, undefined)}
-                    title="no tint"
-                  >
-                    off
-                  </button>
-                  {(['wash', 'top', 'bottom'] as const).map((m) => (
-                    <button
-                      key={m}
-                      className={`size-auto ${selected.overlay?.mode === m ? 'on' : ''}`}
-                      onClick={() =>
-                        setOverlay(selected.id, {
-                          color: selected.overlay?.color ?? '#000000',
-                          opacity: selected.overlay?.opacity ?? 0.4,
-                          mode: m,
-                        })
-                      }
-                      title={m === 'wash' ? 'even tint across the slide' : `fade from the ${m}`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-                {selected.overlay && (
-                  <>
-                    <div className="size-row">
-                      <span className="size-label">tint</span>
-                      <input
-                        type="color"
-                        value={selected.overlay.color}
-                        onChange={(e) =>
-                          setOverlay(selected.id, {
-                            ...selected.overlay!,
-                            color: e.target.value,
-                          })
-                        }
-                      />
-                      <span className="size-val">{selected.overlay.color}</span>
-                    </div>
-                    <div className="size-row">
-                      <span className="size-label">opacity</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={selected.overlay.opacity}
-                        onChange={(e) =>
-                          setOverlay(selected.id, {
-                            ...selected.overlay!,
-                            opacity: Number(e.target.value),
-                          })
-                        }
-                      />
-                      <span className="size-val">
-                        {Math.round(selected.overlay.opacity * 100)}%
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
 
               <span className="field-hint drag-hint">drag the ⠿ handle to reorder elements on the slide</span>
               {selected.elements.map((key, idx) => {
