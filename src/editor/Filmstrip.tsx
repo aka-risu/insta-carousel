@@ -18,6 +18,8 @@ export interface FilmstripProps {
   onDuplicate: (id: string) => void
   onRemove: (id: string) => void
   onAdd: (type: SlideType) => void
+  onEditJson: (id: string) => void
+  onPastePage: () => void
   /** rendered slide height for the carousel's ratio */
   slideH: number
   showPageNumber: boolean
@@ -35,6 +37,8 @@ export function Filmstrip({
   onDuplicate,
   onRemove,
   onAdd,
+  onEditJson,
+  onPastePage,
   slideH,
   showPageNumber,
   showWordmark,
@@ -103,6 +107,9 @@ export function Filmstrip({
               <button title="duplicate" onClick={() => onDuplicate(slide.id)}>
                 ⧉
               </button>
+              <button title="edit / insert as json" onClick={() => onEditJson(slide.id)}>
+                {'{ }'}
+              </button>
               <button title="delete" onClick={() => onRemove(slide.id)}>
                 ×
               </button>
@@ -123,6 +130,9 @@ export function Filmstrip({
             + {t}
           </button>
         ))}
+        <button className="add-chip" onClick={onPastePage} title="paste a slide as json">
+          + paste page
+        </button>
       </div>
     </>
   )

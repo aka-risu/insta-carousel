@@ -17,8 +17,11 @@ import {
   importOutline,
   microLabels,
   newSlide,
+  projectToJSON,
   referencedAssets,
   sizeFor,
+  slideFromJSON,
+  slideToJSON,
 } from './model'
 import {
   THEMES,
@@ -46,6 +49,7 @@ const BUILTIN_ASSETS: Record<string, string> = {
 }
 
 const PROJECT_KEY = 'antara-carousel-project' // the live working draft
+const BASELINE_KEY = 'antara-carousel-baseline' // snapshot of the last import/load/save, for "reset"
 const DESIGNS_KEY = 'antara-carousel-designs' // the saved library
 const CURRENT_KEY = 'antara-carousel-current' // id of the loaded saved design
 const CUSTOM_KEY = 'antara-carousel-custom' // the user's custom theme (image + colors)
@@ -120,6 +124,40 @@ function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
+// the carousel canvas is 1080px wide; uploads bigger than this only waste
+// localStorage quota. downscale to fit MAX_DIM on the longest side and re-encode
+// as JPEG so full-res photos don't blow the ~5MB budget. falls back to the raw
+// data url if the image can't be decoded (e.g. SVG, or a load error).
+const MAX_DIM = 1440 // a little above 1080 so backgrounds stay crisp when scaled
+const JPEG_QUALITY = 0.82
+async function compressImage(file: File): Promise<string> {
+  const raw = await fileToDataUrl(file)
+  // SVGs and gifs don't benefit from canvas re-encoding (and gifs lose animation)
+  if (file.type === 'image/svg+xml' || file.type === 'image/gif') return raw
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('decode failed'))
+      el.src = raw
+    })
+    const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height))
+    // already small and not worth re-encoding — keep the original bytes
+    if (scale === 1 && raw.length < 500_000) return raw
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(img.width * scale)
+    canvas.height = Math.round(img.height * scale)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return raw
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    const out = canvas.toDataURL('image/jpeg', JPEG_QUALITY)
+    // keep whichever is smaller (tiny PNGs can beat JPEG)
+    return out.length < raw.length ? out : raw
+  } catch {
+    return raw
+  }
+}
+
 function loadProject(): Project {
   try {
     const raw = localStorage.getItem(PROJECT_KEY)
@@ -140,8 +178,26 @@ function loadProject(): Project {
   return SEED_PROJECT
 }
 
+// the snapshot "reset" reverts to: the project as it was at the last import,
+// design load, or save. persisted so it survives a reload (otherwise it would
+// re-seed from the already-edited draft). falls back to the current project.
+function loadBaseline(): Project {
+  try {
+    const raw = localStorage.getItem(BASELINE_KEY)
+    if (raw) {
+      const p = JSON.parse(raw) as Project
+      if (Array.isArray(p.slides)) return { ...p, slides: p.slides.map(ensureElements) }
+    }
+  } catch {
+    // corrupted — fall back to the working draft
+  }
+  return loadProject()
+}
+
 export default function App() {
   const [project, setProject] = useState<Project>(loadProject)
+  // snapshot to restore on "reset" — updated at each import/load/save checkpoint
+  const [baseline, setBaseline] = useState<Project>(loadBaseline)
   const [selectedId, setSelectedId] = useState<string | null>(
     () => loadProject().slides[0]?.id ?? null,
   )
@@ -156,6 +212,9 @@ export default function App() {
   const [exporting, setExporting] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importText, setImportText] = useState('')
+  // single-slide JSON editor. id null = insert a brand-new page; id set = opened
+  // from that slide (pre-filled, can replace in place or insert after).
+  const [slideJson, setSlideJson] = useState<{ id: string | null; text: string } | null>(null)
   const [designs, setDesigns] = useState<SavedDesign[]>(loadDesigns)
   const [currentDesignId, setCurrentDesignId] = useState<string | null>(
     () => localStorage.getItem(CURRENT_KEY),
@@ -181,6 +240,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(PROJECT_KEY, JSON.stringify(project))
   }, [project])
+
+  useEffect(() => {
+    localStorage.setItem(BASELINE_KEY, JSON.stringify(baseline))
+  }, [baseline])
 
   useEffect(() => {
     localStorage.setItem(DESIGNS_KEY, JSON.stringify(designs))
@@ -604,6 +667,71 @@ export default function App() {
     [patch],
   )
 
+  // swap the slide at `id` for a model built from JSON (keeps the model's fresh id)
+  const replaceSlide = useCallback(
+    (id: string, model: SlideModel) =>
+      patch((p) => ({
+        ...p,
+        slides: p.slides.map((s) => (s.id === id ? model : s)),
+      })),
+    [patch],
+  )
+
+  // splice a model in right after `id` (append when id is null or not found)
+  const insertSlideAfter = useCallback(
+    (id: string | null, model: SlideModel) =>
+      patch((p) => {
+        const idx = id ? p.slides.findIndex((s) => s.id === id) : -1
+        const slides = [...p.slides]
+        slides.splice(idx < 0 ? slides.length : idx + 1, 0, model)
+        return { ...p, slides }
+      }),
+    [patch],
+  )
+
+  // open the single-slide editor pre-filled from a slide
+  const openSlideJson = useCallback(
+    (id: string) => {
+      const s = project.slides.find((x) => x.id === id)
+      setSlideJson({ id, text: s ? JSON.stringify(slideToJSON(s), null, 2) : '' })
+    },
+    [project.slides],
+  )
+
+  // parse the textarea into one SlideModel; tolerate a pasted project or array
+  const parseSlideJson = (text: string): SlideModel => {
+    const data = JSON.parse(text)
+    const obj = Array.isArray(data) ? data[0] : (data?.slides?.[0] ?? data)
+    if (!obj || typeof obj !== 'object') throw new Error('expected a slide object')
+    return slideFromJSON(obj as Record<string, unknown>)
+  }
+
+  const applySlideReplace = useCallback(() => {
+    if (!slideJson?.id) return
+    try {
+      const model = parseSlideJson(slideJson.text)
+      replaceSlide(slideJson.id, model)
+      setSelectedId(model.id)
+      setSelectedElement(null)
+      setSlideJson(null)
+    } catch (err) {
+      alert('could not read slide json: ' + (err instanceof Error ? err.message : String(err)))
+    }
+  }, [slideJson, replaceSlide])
+
+  const applySlideInsert = useCallback(() => {
+    if (!slideJson) return
+    try {
+      const model = parseSlideJson(slideJson.text)
+      insertSlideAfter(slideJson.id ?? selectedId, model)
+      setSelectedId(model.id)
+      setSelectedElement(null)
+      setSlideJson(null)
+    } catch (err) {
+      alert('could not read slide json: ' + (err instanceof Error ? err.message : String(err)))
+    }
+  }, [slideJson, selectedId, insertSlideAfter])
+
   // ── assets ─────────────────────────────────────────────────
   // read uploads as data urls (persisted), then report the names added so a
   // caller (e.g. the slide-background picker) can assign the freshly added image.
@@ -611,7 +739,7 @@ export default function App() {
     async (files: FileList | File[], onAdded?: (names: string[]) => void) => {
       const images = Array.from(files).filter((f) => f.type.startsWith('image/'))
       const entries = await Promise.all(
-        images.map(async (f) => [f.name, await fileToDataUrl(f)] as const),
+        images.map(async (f) => [f.name, await compressImage(f)] as const),
       )
       if (!entries.length) return
       const next = { ...userImages, ...Object.fromEntries(entries) }
@@ -631,6 +759,23 @@ export default function App() {
     },
     [userImages, saveImages],
   )
+
+  // drop every uploaded image no slide references, freeing localStorage in one
+  // click. images still in use are kept. returns how many were removed.
+  const clearUnusedImages = useCallback((): number => {
+    const used = new Set(refs)
+    const next: Record<string, string> = {}
+    let removed = 0
+    for (const [name, url] of Object.entries(userImages)) {
+      if (used.has(name)) next[name] = url
+      else removed++
+    }
+    if (removed > 0) {
+      setUserImages(next)
+      saveImages(next)
+    }
+    return removed
+  }, [userImages, refs, saveImages])
 
   // ── custom theme ───────────────────────────────────────────
   // store the background as a data url (not an object url) so it survives a
@@ -670,6 +815,7 @@ export default function App() {
       try {
         const p = importDesign(importText)
         setProject(p)
+        setBaseline(cloneProject(p))
         setSelectedId(p.slides[0]?.id ?? null)
         setCurrentDesignId(null)
         setImporting(false)
@@ -681,7 +827,11 @@ export default function App() {
     }
     const { title, slides } = importOutline(importText)
     if (slides.length === 0) return
-    setProject((p) => ({ ...p, title: title || p.title, slides }))
+    setProject((p) => {
+      const next = { ...p, title: title || p.title, slides }
+      setBaseline(cloneProject(next))
+      return next
+    })
     setSelectedId(slides[0].id)
     setImporting(false)
     setImportText('')
@@ -711,6 +861,7 @@ export default function App() {
   const saveDesign = useCallback(() => {
     const name = project.title.trim() || 'untitled carousel'
     const snapshot = cloneProject(project)
+    setBaseline(cloneProject(project)) // saving makes this the new "original" to reset to
     setDesigns((list) => {
       const existing = currentDesignId && list.some((d) => d.id === currentDesignId)
       if (existing) {
@@ -728,6 +879,7 @@ export default function App() {
   const saveAsNew = useCallback(() => {
     const name = (project.title.trim() || 'untitled carousel') + ' (copy)'
     const id = newSlide('text').id
+    setBaseline(cloneProject(project)) // saving makes this the new "original" to reset to
     setDesigns((list) => [
       { id, name, savedAt: Date.now(), project: cloneProject(project) },
       ...list,
@@ -739,6 +891,7 @@ export default function App() {
   const loadDesign = useCallback((d: SavedDesign) => {
     const p = cloneProject(d.project)
     setProject(p)
+    setBaseline(cloneProject(p))
     setSelectedId(p.slides[0]?.id ?? null)
     setCurrentDesignId(d.id)
     setShowDesigns(false)
@@ -760,6 +913,7 @@ export default function App() {
   const loadTemplate = useCallback(() => {
     const fresh = templateProject(project.themeId)
     setProject(fresh)
+    setBaseline(cloneProject(fresh))
     setSelectedId(fresh.slides[0].id)
     setCurrentDesignId(null)
     setShowDesigns(false)
@@ -783,6 +937,20 @@ export default function App() {
     if (isDirty()) setShowNewPrompt(true)
     else loadTemplate()
   }, [isDirty, loadTemplate])
+
+  // "reset": discard edits made since the last import/load/save and restore that snapshot
+  const canReset = useMemo(
+    () => JSON.stringify(project) !== JSON.stringify(baseline),
+    [project, baseline],
+  )
+  const resetToOriginal = useCallback(() => {
+    if (!canReset) return
+    if (!window.confirm('Discard all changes and return to the last imported/saved version?')) return
+    const p = cloneProject(baseline)
+    setProject(p)
+    setSelectedId(p.slides[0]?.id ?? null)
+    setSelectedElement(null)
+  }, [baseline, canReset])
 
   const currentName = designs.find((d) => d.id === currentDesignId)?.name ?? null
 
@@ -820,18 +988,6 @@ export default function App() {
             </option>
           ))}
         </select>
-        <button className="ghost-btn" onClick={() => setShowDesigns(true)}>
-          designs{designs.length ? ` (${designs.length})` : ''}
-        </button>
-        <button className="ghost-btn" onClick={() => setImporting(true)}>
-          import outline
-        </button>
-        <button className="ghost-btn" onClick={newDesign} title="start a fresh carousel from a template">
-          new carousel
-        </button>
-        <button className="ghost-btn" onClick={saveDesign} title={currentName ? `update “${currentName}”` : 'save to your designs'}>
-          {savedFlash ? 'saved ✓' : currentName ? 'save' : 'save design'}
-        </button>
         <button
           className="export-btn"
           onClick={handleExport}
@@ -855,6 +1011,8 @@ export default function App() {
             onDuplicate={duplicateSlide}
             onRemove={removeSlide}
             onAdd={addSlide}
+            onEditJson={openSlideJson}
+            onPastePage={() => setSlideJson({ id: null, text: '' })}
             slideH={slideH}
             showPageNumber={project.chrome?.pageNumbers !== false}
             showWordmark={project.chrome?.wordmark !== false}
@@ -915,6 +1073,7 @@ export default function App() {
             storageFull={storageFull}
             addFiles={addFiles}
             removeAsset={removeAsset}
+            clearUnusedImages={clearUnusedImages}
             patch={patch}
             updateSlide={updateSlide}
             setOverlay={setOverlay}
@@ -932,9 +1091,34 @@ export default function App() {
             wrapSelection={wrapSelection}
             onCloseElement={() => setSelectedElement(null)}
             addElement={addElement}
+            selectElement={(key) => { setSelectedElement(key); if (isMobile) setSheetOpen(true) }}
           />
         </section>
       </main>
+
+      <footer className="bottombar">
+        <button className="ghost-btn" onClick={() => setShowDesigns(true)}>
+          designs{designs.length ? ` (${designs.length})` : ''}
+        </button>
+        <button className="ghost-btn" onClick={() => setImporting(true)}>
+          import outline
+        </button>
+        <button className="ghost-btn" onClick={newDesign} title="start a fresh carousel from a template">
+          new carousel
+        </button>
+        <span className="bottombar-spacer" />
+        <button
+          className="ghost-btn"
+          onClick={resetToOriginal}
+          disabled={!canReset}
+          title="discard changes and return to the last imported/saved version"
+        >
+          reset
+        </button>
+        <button className="ghost-btn" onClick={saveDesign} title={currentName ? `update “${currentName}”` : 'save to your designs'}>
+          {savedFlash ? 'saved ✓' : currentName ? 'save' : 'save design'}
+        </button>
+      </footer>
 
       {/* mobile-only: open the inspector sheet */}
       {isMobile && !sheetOpen && (
@@ -995,11 +1179,61 @@ export default function App() {
                 cancel
               </button>
               <button
+                className="ghost-btn"
+                onClick={() => setImportText(JSON.stringify(projectToJSON(project), null, 2))}
+                title="dump the current carousel as editable json"
+              >
+                load current as json
+              </button>
+              <button
                 className="export-btn"
                 disabled={!importText.trim()}
                 onClick={runImport}
               >
                 replace slides
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── single-slide json editor ── */}
+      {slideJson && (
+        <div className="overlay" onClick={() => setSlideJson(null)}>
+          <div className="overlay-card" onClick={(e) => e.stopPropagation()}>
+            <label className="pane-label">
+              {slideJson.id ? 'edit slide json' : 'paste a slide'}
+            </label>
+            <p className="type-about">
+              one slide object — type, elements and any content fields. “insert after”
+              adds it as a new slide; “replace this slide” swaps the one you opened.
+            </p>
+            <textarea
+              autoFocus
+              rows={16}
+              value={slideJson.text}
+              onChange={(e) => setSlideJson((s) => (s ? { ...s, text: e.target.value } : s))}
+              placeholder={'{\n  "type": "text",\n  "elements": ["text"],\n  "text": "one idea per slide"\n}'}
+            />
+            <div className="overlay-actions">
+              <button className="ghost-btn" onClick={() => setSlideJson(null)}>
+                cancel
+              </button>
+              {slideJson.id && (
+                <button
+                  className="ghost-btn"
+                  disabled={!slideJson.text.trim()}
+                  onClick={applySlideReplace}
+                >
+                  replace this slide
+                </button>
+              )}
+              <button
+                className="export-btn"
+                disabled={!slideJson.text.trim()}
+                onClick={applySlideInsert}
+              >
+                insert after
               </button>
             </div>
           </div>
