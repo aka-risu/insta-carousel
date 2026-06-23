@@ -414,94 +414,98 @@ const CONTENT_KEYS: ElementKey[] = [
   'annotations',
 ]
 
+/** Map one raw JSON object to a valid SlideModel (fresh id). The single
+ *  validation choke point shared by whole-project import and single-slide insert. */
+export function slideFromJSON(d: Record<string, unknown>): SlideModel {
+  const t = String(d.type ?? 'text') as SlideType
+  const s = newSlide(SLIDE_TYPE_ORDER.includes(t) ? t : 'text')
+  for (const k of CONTENT_KEYS) if (typeof d[k] === 'string') s[k] = d[k] as string
+  if (typeof d.eyebrow === 'string') s.eyebrow = d.eyebrow
+
+  if (Array.isArray(d.elements)) {
+    s.elements = (d.elements as string[]).filter((k): k is ElementKey =>
+      ELEMENT_ORDER.includes(k as ElementKey),
+    )
+  } else {
+    // keep the type's default elements, then add any extra populated fields
+    for (const k of ELEMENT_ORDER) if (s[k] && !s.elements.includes(k)) s.elements.push(k)
+  }
+
+  if (d.sizes && typeof d.sizes === 'object') {
+    s.sizes = {}
+    for (const [k, v] of Object.entries(d.sizes as Record<string, unknown>))
+      if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'number')
+        s.sizes[k as ElementKey] = v
+  }
+  if (d.widths && typeof d.widths === 'object') {
+    s.widths = {}
+    for (const [k, v] of Object.entries(d.widths as Record<string, unknown>))
+      if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'number')
+        s.widths[k as ElementKey] = v
+  }
+  if (d.colors && typeof d.colors === 'object') {
+    s.colors = {}
+    for (const [k, v] of Object.entries(d.colors as Record<string, unknown>))
+      if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'string')
+        s.colors[k as ElementKey] = v
+  }
+  if (d.imageMode === 'top' || d.imageMode === 'bottom' || d.imageMode === 'inline')
+    s.imageMode = d.imageMode
+  if (typeof d.imageFrac === 'number') s.imageFrac = d.imageFrac
+  if (typeof d.background === 'string') s.background = d.background
+  if (typeof d.bgImage === 'string') s.bgImage = d.bgImage
+
+  const ov = d.overlay as Record<string, unknown> | undefined
+  if (ov && typeof ov === 'object' && typeof ov.color === 'string') {
+    const mode = ov.mode === 'top' || ov.mode === 'bottom' ? ov.mode : 'wash'
+    s.overlay = {
+      color: ov.color,
+      opacity: typeof ov.opacity === 'number' ? ov.opacity : 0.4,
+      mode,
+    }
+  }
+
+  if (d.textBg && typeof d.textBg === 'object') {
+    const out: Partial<Record<ElementKey, TextBacking>> = {}
+    for (const [k, v] of Object.entries(d.textBg as Record<string, unknown>)) {
+      if (!ELEMENT_ORDER.includes(k as ElementKey)) continue
+      const tb = v as Record<string, unknown>
+      if (!tb || typeof tb !== 'object' || typeof tb.color !== 'string') continue
+      const style = (['box', 'pill', 'highlight', 'band'] as const).includes(
+        tb.style as TextBgStyle,
+      )
+        ? (tb.style as TextBgStyle)
+        : 'box'
+      out[k as ElementKey] = {
+        style,
+        color: tb.color,
+        ...(typeof tb.opacity === 'number' ? { opacity: tb.opacity } : {}),
+      }
+    }
+    if (Object.keys(out).length) s.textBg = out
+  }
+
+  if (d.free === true) s.free = true
+  if (d.positions && typeof d.positions === 'object') {
+    const out: Partial<Record<ElementKey, { x: number; y: number }>> = {}
+    for (const [k, v] of Object.entries(d.positions as Record<string, unknown>)) {
+      if (!ELEMENT_ORDER.includes(k as ElementKey)) continue
+      const pos = v as Record<string, unknown>
+      if (pos && typeof pos.x === 'number' && typeof pos.y === 'number')
+        out[k as ElementKey] = { x: pos.x, y: pos.y }
+    }
+    if (Object.keys(out).length) s.positions = out
+  }
+  return s
+}
+
 export function importDesign(raw: string): Project {
   const data = JSON.parse(raw)
   const arr: unknown = Array.isArray(data) ? data : data?.slides
   if (!Array.isArray(arr) || arr.length === 0)
     throw new Error('design json needs a non-empty "slides" array')
 
-  const slides = arr.map((d: Record<string, unknown>) => {
-    const t = String(d.type ?? 'text') as SlideType
-    const s = newSlide(SLIDE_TYPE_ORDER.includes(t) ? t : 'text')
-    for (const k of CONTENT_KEYS) if (typeof d[k] === 'string') s[k] = d[k] as string
-    if (typeof d.eyebrow === 'string') s.eyebrow = d.eyebrow
-
-    if (Array.isArray(d.elements)) {
-      s.elements = (d.elements as string[]).filter((k): k is ElementKey =>
-        ELEMENT_ORDER.includes(k as ElementKey),
-      )
-    } else {
-      // keep the type's default elements, then add any extra populated fields
-      for (const k of ELEMENT_ORDER) if (s[k] && !s.elements.includes(k)) s.elements.push(k)
-    }
-
-    if (d.sizes && typeof d.sizes === 'object') {
-      s.sizes = {}
-      for (const [k, v] of Object.entries(d.sizes as Record<string, unknown>))
-        if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'number')
-          s.sizes[k as ElementKey] = v
-    }
-    if (d.widths && typeof d.widths === 'object') {
-      s.widths = {}
-      for (const [k, v] of Object.entries(d.widths as Record<string, unknown>))
-        if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'number')
-          s.widths[k as ElementKey] = v
-    }
-    if (d.colors && typeof d.colors === 'object') {
-      s.colors = {}
-      for (const [k, v] of Object.entries(d.colors as Record<string, unknown>))
-        if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'string')
-          s.colors[k as ElementKey] = v
-    }
-    if (d.imageMode === 'top' || d.imageMode === 'bottom' || d.imageMode === 'inline')
-      s.imageMode = d.imageMode
-    if (typeof d.imageFrac === 'number') s.imageFrac = d.imageFrac
-    if (typeof d.background === 'string') s.background = d.background
-    if (typeof d.bgImage === 'string') s.bgImage = d.bgImage
-
-    const ov = d.overlay as Record<string, unknown> | undefined
-    if (ov && typeof ov === 'object' && typeof ov.color === 'string') {
-      const mode = ov.mode === 'top' || ov.mode === 'bottom' ? ov.mode : 'wash'
-      s.overlay = {
-        color: ov.color,
-        opacity: typeof ov.opacity === 'number' ? ov.opacity : 0.4,
-        mode,
-      }
-    }
-
-    if (d.textBg && typeof d.textBg === 'object') {
-      const out: Partial<Record<ElementKey, TextBacking>> = {}
-      for (const [k, v] of Object.entries(d.textBg as Record<string, unknown>)) {
-        if (!ELEMENT_ORDER.includes(k as ElementKey)) continue
-        const tb = v as Record<string, unknown>
-        if (!tb || typeof tb !== 'object' || typeof tb.color !== 'string') continue
-        const style = (['box', 'pill', 'highlight', 'band'] as const).includes(
-          tb.style as TextBgStyle,
-        )
-          ? (tb.style as TextBgStyle)
-          : 'box'
-        out[k as ElementKey] = {
-          style,
-          color: tb.color,
-          ...(typeof tb.opacity === 'number' ? { opacity: tb.opacity } : {}),
-        }
-      }
-      if (Object.keys(out).length) s.textBg = out
-    }
-
-    if (d.free === true) s.free = true
-    if (d.positions && typeof d.positions === 'object') {
-      const out: Partial<Record<ElementKey, { x: number; y: number }>> = {}
-      for (const [k, v] of Object.entries(d.positions as Record<string, unknown>)) {
-        if (!ELEMENT_ORDER.includes(k as ElementKey)) continue
-        const pos = v as Record<string, unknown>
-        if (pos && typeof pos.x === 'number' && typeof pos.y === 'number')
-          out[k as ElementKey] = { x: pos.x, y: pos.y }
-      }
-      if (Object.keys(out).length) s.positions = out
-    }
-    return s
-  })
+  const slides = arr.map((d) => slideFromJSON(d as Record<string, unknown>))
 
   const colors: ColorOverrides = {}
   if (data.colors && typeof data.colors === 'object')
@@ -644,6 +648,36 @@ export function projectToText(p: Project): string {
     return `slide ${i + 1} (${s.type})\n${bits.join('\n')}`
   })
   return [p.title || 'untitled carousel', '', ...parts].join('\n\n')
+}
+
+/** Serialize one slide to compact JSON for hand-editing. Omits empty content,
+ *  absent optionals, and `id` (regenerated on import). */
+export function slideToJSON(s: SlideModel): Record<string, unknown> {
+  const out: Record<string, unknown> = { type: s.type, elements: s.elements }
+  for (const k of CONTENT_KEYS) if (s[k]) out[k] = s[k]
+  if (s.eyebrow) out.eyebrow = s.eyebrow
+  if (s.sizes && Object.keys(s.sizes).length) out.sizes = s.sizes
+  if (s.widths && Object.keys(s.widths).length) out.widths = s.widths
+  if (s.colors && Object.keys(s.colors).length) out.colors = s.colors
+  if (s.imageMode) out.imageMode = s.imageMode
+  if (typeof s.imageFrac === 'number') out.imageFrac = s.imageFrac
+  if (s.background) out.background = s.background
+  if (s.bgImage) out.bgImage = s.bgImage
+  if (s.overlay) out.overlay = s.overlay
+  if (s.textBg && Object.keys(s.textBg).length) out.textBg = s.textBg
+  if (s.free) out.free = true
+  if (s.positions && Object.keys(s.positions).length) out.positions = s.positions
+  return out
+}
+
+/** Serialize the whole project to compact JSON for hand-editing. */
+export function projectToJSON(p: Project): Record<string, unknown> {
+  const out: Record<string, unknown> = { title: p.title, theme: p.themeId }
+  if (p.ratio) out.ratio = p.ratio
+  if (p.colors && Object.keys(p.colors).length) out.colors = p.colors
+  if (p.chrome && Object.keys(p.chrome).length) out.chrome = p.chrome
+  out.slides = p.slides.map(slideToJSON)
+  return out
 }
 
 export function referencedAssets(p: Project): string[] {
