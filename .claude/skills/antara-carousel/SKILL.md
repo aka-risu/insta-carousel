@@ -54,7 +54,9 @@ clamped — so when in doubt, omit a field rather than guess.
 ```
 
 Top-level keys: `title`, `theme` (alias `themeId`), `slides` (required, non-empty),
-and optional `colors` (project-wide overrides — see Color below). `theme` is one of:
+and optional `colors` (project-wide overrides — see Color below) and `chrome`
+(toggle the auto corner labels / page numbers / wordmark — see Chrome below).
+`theme` is one of:
 `journal`, `openwater`, `linen`, `seachart`, `parchment`, `tide`, `noir`, `manifesto`.
 (`custom` exists but needs the user to supply an image, so don't emit it.)
 
@@ -156,6 +158,28 @@ All optional. Skip unless you have a specific reason — auto behavior is good.
   `eyebrow`. Best for myth-busting, empowering, or stat-driven carousels where impact
   beats subtlety — not the calm naturalist tone the other themes carry. Write body
   copy short and punchy; let the marks and the eyebrow do the editorial work.
+
+## Chrome (optional)
+
+Every slide carries auto "chrome": a corner micro-label (`field notes · no. 33`,
+`observation ii`, …), a `N / total` page counter, and the antara wordmark. The
+top-level `chrome` object switches any of these off project-wide or overrides the
+entry number:
+
+```json
+"chrome": { "labels": false, "pageNumbers": false, "wordmark": false, "entryNo": 1 }
+```
+
+- `labels` (default `true`) — the auto corner labels. `false` hides them on every
+  slide. A per-slide `eyebrow` you set still shows; only the *auto* text is dropped.
+- `pageNumbers` (default `true`) — the `N / total` counter.
+- `wordmark` (default `true`) — the antara wordmark footer.
+- `entryNo` (1–999) — replaces the title-derived "no. 33" number in the labels.
+  Omit for the auto value. Ignored when `labels` is off.
+
+Omit `chrome` entirely (the default) to keep all the chrome on — that's the
+intended look for most carousels. Reach for it only when the user asks to clean a
+slide up or pin the entry number.
 
 ## Color (optional)
 

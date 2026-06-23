@@ -17,6 +17,9 @@ export interface SlideProps extends ElementSelection {
   assets: Record<string, string> // name -> object url
   /** rendered slide height for the carousel's ratio; defaults to 4:5 (1350) */
   slideH?: number
+  /** chrome toggles; default on (undefined = shown), matching legacy behaviour */
+  showPageNumber?: boolean
+  showWordmark?: boolean
 }
 
 // the one slide component — used verbatim for both preview and export
@@ -28,6 +31,8 @@ export function Slide({
   theme,
   assets,
   slideH = layout.slideH,
+  showPageNumber = true,
+  showWordmark = true,
   selectedElement,
   onSelectElement,
   onElementPointerDown,
@@ -169,29 +174,33 @@ export function Slide({
       )}
 
       {/* chrome: eyebrow / micro-label — sits inside the content region, clear
-          of the band. bold style frames it in a thin outlined box. */}
-      <div
-        style={{
-          position: 'absolute',
-          top: contentTop + layout.frame,
-          left: layout.frame,
-          fontFamily: bold ? fonts.sans : fonts.mono,
-          fontWeight: bold ? 600 : 500,
-          fontSize: bold ? 30 : layout.microSize,
-          letterSpacing: bold ? '0.18em' : layout.microTracking,
-          textTransform: bold ? 'uppercase' : undefined,
-          color: p.dim,
-          ...(bold
-            ? {
-                border: `1.5px solid ${p.dim}`,
-                borderRadius: 4,
-                padding: '10px 18px',
-              }
-            : null),
-        }}
-      >
-        {labelText}
-      </div>
+          of the band. bold style frames it in a thin outlined box. skipped
+          entirely when empty, so labels-off (or a blank eyebrow) draws nothing
+          rather than an empty outlined box. */}
+      {labelText && (
+        <div
+          style={{
+            position: 'absolute',
+            top: contentTop + layout.frame,
+            left: layout.frame,
+            fontFamily: bold ? fonts.sans : fonts.mono,
+            fontWeight: bold ? 600 : 500,
+            fontSize: bold ? 30 : layout.microSize,
+            letterSpacing: bold ? '0.18em' : layout.microTracking,
+            textTransform: bold ? 'uppercase' : undefined,
+            color: p.dim,
+            ...(bold
+              ? {
+                  border: `1.5px solid ${p.dim}`,
+                  borderRadius: 4,
+                  padding: '10px 18px',
+                }
+              : null),
+          }}
+        >
+          {labelText}
+        </div>
+      )}
 
       {/* archetype content — confined to the region the band leaves free */}
       <div style={{ position: 'absolute', top: contentTop, bottom: contentBottom, left: 0, right: 0 }}>
@@ -208,30 +217,34 @@ export function Slide({
       </div>
 
       {/* chrome: footer — the antara wordmark, recolored to the palette */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: contentBottom + layout.frame + 2,
-          left: layout.frame,
-        }}
-      >
-        <AntaraWordmark height={28} color={p.dim} />
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: contentBottom + layout.frame - 8,
-          right: layout.frame,
-          fontFamily: bold ? fonts.sans : undefined,
-          fontStyle: bold ? 'normal' : 'italic',
-          fontWeight: bold ? 600 : 500,
-          fontSize: layout.footerSize,
-          letterSpacing: bold ? '0.04em' : undefined,
-          color: p.dim,
-        }}
-      >
-        {index + 1} / {total}
-      </div>
+      {showWordmark && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: contentBottom + layout.frame + 2,
+            left: layout.frame,
+          }}
+        >
+          <AntaraWordmark height={28} color={p.dim} />
+        </div>
+      )}
+      {showPageNumber && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: contentBottom + layout.frame - 8,
+            right: layout.frame,
+            fontFamily: bold ? fonts.sans : undefined,
+            fontStyle: bold ? 'normal' : 'italic',
+            fontWeight: bold ? 600 : 500,
+            fontSize: layout.footerSize,
+            letterSpacing: bold ? '0.04em' : undefined,
+            color: p.dim,
+          }}
+        >
+          {index + 1} / {total}
+        </div>
+      )}
     </div>
   )
 }

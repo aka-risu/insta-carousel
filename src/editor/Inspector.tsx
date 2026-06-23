@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Project, SlideModel, ElementKey, SlideOverlay, TextBacking } from '../model'
+import type { Project, ProjectChrome, SlideModel, ElementKey, SlideOverlay, TextBacking } from '../model'
 import { AVAILABLE_ELEMENTS, elementDef } from '../model'
 import type { Theme, CustomThemeData, ColorOverrides } from '../tokens'
 import { CarouselPanel } from './CarouselPanel'
@@ -19,6 +19,7 @@ export interface InspectorProps {
   setCustomBg: (file: File) => void
   autoColors: () => void
   setProjectColor: (key: keyof ColorOverrides, value: string | undefined) => void
+  setChrome: (changes: Partial<ProjectChrome>) => void
   assets: Record<string, string>
   builtinAssets: Record<string, string>
   userImages: Record<string, string>
@@ -45,6 +46,7 @@ export interface InspectorProps {
   bodyRef: React.RefObject<HTMLTextAreaElement | null>
   removeElement: (id: string, key: ElementKey) => void
   setSize: (id: string, key: ElementKey, value: number | undefined) => void
+  setWidth: (id: string, key: ElementKey, value: number | undefined) => void
   setElementColor: (id: string, key: ElementKey, value: string | undefined) => void
   setTextBg: (id: string, key: ElementKey, value: TextBacking | undefined) => void
   wrapSelection: (open: string, close: string) => void
@@ -67,6 +69,7 @@ export function Inspector(props: InspectorProps) {
     setCustomBg,
     autoColors,
     setProjectColor,
+    setChrome,
     assets,
     builtinAssets,
     userImages,
@@ -87,6 +90,7 @@ export function Inspector(props: InspectorProps) {
     bodyRef,
     removeElement,
     setSize,
+    setWidth,
     setElementColor,
     setTextBg,
     wrapSelection,
@@ -114,6 +118,7 @@ export function Inspector(props: InspectorProps) {
           setCustomBg={setCustomBg}
           autoColors={autoColors}
           setProjectColor={setProjectColor}
+          setChrome={setChrome}
           assets={assets}
           builtinAssets={builtinAssets}
           userImages={userImages}
@@ -135,6 +140,7 @@ export function Inspector(props: InspectorProps) {
             updateSlide={updateSlide}
             removeElement={removeElement}
             setSize={setSize}
+            setWidth={setWidth}
             setElementColor={setElementColor}
             setTextBg={setTextBg}
             wrapSelection={wrapSelection}

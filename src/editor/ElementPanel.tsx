@@ -6,9 +6,11 @@ import type {
   TextBgStyle,
 } from '../model'
 import {
+  AUTO_WIDTH,
   DEFAULT_IMAGE_FRAC,
   IMAGE_FRAC_RANGE,
   SIZE_RANGE,
+  WIDTH_RANGE,
   autoSize,
   elementDef,
 } from '../model'
@@ -25,6 +27,7 @@ export interface ElementPanelProps {
   updateSlide: (id: string, changes: Partial<SlideModel>) => void
   removeElement: (id: string, key: ElementKey) => void
   setSize: (id: string, key: ElementKey, value: number | undefined) => void
+  setWidth: (id: string, key: ElementKey, value: number | undefined) => void
   setElementColor: (id: string, key: ElementKey, value: string | undefined) => void
   setTextBg: (id: string, key: ElementKey, value: TextBacking | undefined) => void
   wrapSelection: (open: string, close: string) => void
@@ -32,7 +35,7 @@ export interface ElementPanelProps {
 }
 
 export function ElementPanel(props: ElementPanelProps) {
-  const { slide, elementKey: key, theme, assets, bodyRef, updateSlide, removeElement, setSize, setElementColor, setTextBg, wrapSelection } = props
+  const { slide, elementKey: key, theme, assets, bodyRef, updateSlide, removeElement, setSize, setWidth, setElementColor, setTextBg, wrapSelection } = props
   const def = elementDef(slide.type, key)
 
   return (
@@ -120,6 +123,34 @@ export function ElementPanel(props: ElementPanelProps) {
                 step={range.step}
                 value={current}
                 onChange={(e) => setSize(slide.id, key, Number(e.target.value))}
+              />
+              <span className="size-val">{current}px</span>
+            </div>
+          )
+        })()}
+
+      {/* manual box-width control — reflows text; available on every text element */}
+      {hasSizeControl(key) &&
+        (() => {
+          const current = slide.widths?.[key] ?? AUTO_WIDTH[key]
+          const isAuto = slide.widths?.[key] == null
+          return (
+            <div className="size-row">
+              <span className="size-label">width</span>
+              <button
+                className={`size-auto ${isAuto ? 'on' : ''}`}
+                onClick={() => setWidth(slide.id, key, undefined)}
+                title="automatic width"
+              >
+                auto
+              </button>
+              <input
+                type="range"
+                min={WIDTH_RANGE.min}
+                max={WIDTH_RANGE.max}
+                step={WIDTH_RANGE.step}
+                value={current}
+                onChange={(e) => setWidth(slide.id, key, Number(e.target.value))}
               />
               <span className="size-val">{current}px</span>
             </div>

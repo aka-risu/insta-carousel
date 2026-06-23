@@ -20,6 +20,8 @@ export interface FilmstripProps {
   onAdd: (type: SlideType) => void
   /** rendered slide height for the carousel's ratio */
   slideH: number
+  showPageNumber: boolean
+  showWordmark: boolean
 }
 
 export function Filmstrip({
@@ -34,6 +36,8 @@ export function Filmstrip({
   onRemove,
   onAdd,
   slideH,
+  showPageNumber,
+  showWordmark,
 }: FilmstripProps) {
   const frameH = Math.round(slideH * SCALE)
 
@@ -68,6 +72,8 @@ export function Filmstrip({
                   theme={theme}
                   assets={assets}
                   slideH={slideH}
+                  showPageNumber={showPageNumber}
+                  showWordmark={showWordmark}
                   selectedElement={null}
                 />
               </div>

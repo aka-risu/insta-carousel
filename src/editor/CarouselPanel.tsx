@@ -1,5 +1,6 @@
 import { useRef } from 'react'
-import type { Project } from '../model'
+import type { Project, ProjectChrome } from '../model'
+import { entryNumber } from '../model'
 import type { Theme, CustomThemeData, ColorOverrides } from '../tokens'
 
 export interface CarouselPanelProps {
@@ -10,6 +11,7 @@ export interface CarouselPanelProps {
   setCustomBg: (file: File) => void
   autoColors: () => void
   setProjectColor: (key: keyof ColorOverrides, value: string | undefined) => void
+  setChrome: (changes: Partial<ProjectChrome>) => void
   // assets
   assets: Record<string, string>
   builtinAssets: Record<string, string>
@@ -128,6 +130,78 @@ export function CarouselPanel(props: CarouselPanelProps) {
           </span>
         </div>
       )}
+
+      {(() => {
+        const chrome = props.project.chrome ?? {}
+        const labelsOn = chrome.labels !== false
+        const autoNo = entryNumber(props.project.title || 'untitled')
+        const toggle = (key: 'labels' | 'pageNumbers' | 'wordmark', on: boolean) =>
+          // on → drop the key (back to the default-on state); off → store false
+          props.setChrome({ [key]: on ? undefined : false })
+        return (
+          <div className="custom-theme">
+            <label className="pane-label">chrome</label>
+            <div className="chrome-rows">
+              <label className="chrome-toggle">
+                <input
+                  type="checkbox"
+                  checked={labelsOn}
+                  onChange={(e) => toggle('labels', e.target.checked)}
+                />
+                <span>corner labels</span>
+              </label>
+              <label className="chrome-toggle">
+                <input
+                  type="checkbox"
+                  checked={chrome.pageNumbers !== false}
+                  onChange={(e) => toggle('pageNumbers', e.target.checked)}
+                />
+                <span>page numbers</span>
+              </label>
+              <label className="chrome-toggle">
+                <input
+                  type="checkbox"
+                  checked={chrome.wordmark !== false}
+                  onChange={(e) => toggle('wordmark', e.target.checked)}
+                />
+                <span>wordmark</span>
+              </label>
+              <label className={`chrome-no${labelsOn ? '' : ' disabled'}`}>
+                <span>entry no.</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  disabled={!labelsOn}
+                  value={chrome.entryNo ?? ''}
+                  placeholder={String(autoNo)}
+                  onChange={(e) => {
+                    const v = e.target.value.trim()
+                    if (v === '') return props.setChrome({ entryNo: undefined })
+                    const n = Math.min(999, Math.max(1, Math.round(Number(v))))
+                    props.setChrome({ entryNo: Number.isFinite(n) ? n : undefined })
+                  }}
+                />
+                {chrome.entryNo != null && (
+                  <button
+                    className="field-remove"
+                    title="reset the entry number to auto"
+                    onClick={() => props.setChrome({ entryNo: undefined })}
+                  >
+                    ×
+                  </button>
+                )}
+              </label>
+            </div>
+            <span className="field-hint">
+              switch off the auto corner labels (the "no. {autoNo}" kicker and its kin),
+              the page counter, or the antara wordmark — across the whole carousel. set a
+              custom entry no. to replace the title-derived "{autoNo}"; leave blank for auto.
+              a per-slide eyebrow still shows even with labels off.
+            </span>
+          </div>
+        )
+      })()}
 
       <label className="pane-label">assets</label>
       {props.storageFull && (

@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { ElementKey, SlideModel, SlideType } from '../model'
-import { sizeFor, DEFAULT_FREE_POS } from '../model'
+import { sizeFor, widthFor, DEFAULT_FREE_POS } from '../model'
 import type { Palette, ThemeStyle } from '../tokens'
 import { layout, fonts } from '../tokens'
 import { RichText } from './RichText'
@@ -64,6 +64,7 @@ export function ContentSlide({
               fontWeight: bold ? 400 : 600,
               lineHeight: 1,
               letterSpacing: '-0.02em',
+              maxWidth: widthFor(slide, 'stat'),
               color: colorFor('stat', bold ? p.accent : p.fg),
             }}
           >
@@ -83,7 +84,7 @@ export function ContentSlide({
               lineHeight: bold ? 1.05 : preset.lineHeight,
               textTransform: bold ? 'uppercase' : undefined,
               whiteSpace: 'pre-wrap',
-              maxWidth: 920,
+              maxWidth: widthFor(slide, 'text') ?? 920,
               letterSpacing: bold ? '-0.01em' : type === 'hook' ? '-0.005em' : undefined,
               color: colorFor('text', p.fg),
             }}
@@ -106,6 +107,7 @@ export function ContentSlide({
                   letterSpacing: bold ? '0.08em' : '0.16em',
                   textTransform: bold ? 'uppercase' : undefined,
                   whiteSpace: 'pre-wrap',
+                  maxWidth: widthFor(slide, 'sub'),
                   color: colorFor('sub', p.accent),
                 }}
               >
@@ -125,6 +127,7 @@ export function ContentSlide({
               lineHeight: bold ? 1.32 : undefined,
               textTransform: bold ? 'uppercase' : undefined,
               whiteSpace: 'pre-wrap',
+              maxWidth: widthFor(slide, 'sub'),
               color: colorFor('sub', p.dim),
             }}
           >
@@ -205,7 +208,7 @@ export function ContentSlide({
               textTransform: bold ? 'uppercase' : undefined,
               letterSpacing: bold ? '0.01em' : undefined,
               color: colorFor('def', p.dim),
-              maxWidth: 760,
+              maxWidth: widthFor(slide, 'def') ?? 760,
               whiteSpace: 'pre-wrap',
               textAlign: 'left',
             }}
@@ -224,6 +227,7 @@ export function ContentSlide({
               fontSize: sizeFor(slide, 'attribution'),
               letterSpacing: bold ? '0.04em' : '0.18em',
               textTransform: bold ? 'uppercase' : undefined,
+              maxWidth: widthFor(slide, 'attribution'),
               color: colorFor('attribution', p.dim),
             }}
           >

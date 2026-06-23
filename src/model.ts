@@ -55,6 +55,8 @@ export interface SlideModel {
   eyebrow?: string
   /** manual px size per element; missing key = use that element's auto size */
   sizes?: Partial<Record<ElementKey, number>>
+  /** manual px max-width per element; missing key = use that element's auto width */
+  widths?: Partial<Record<ElementKey, number>>
   /** per-element text color override; missing key = use the palette color */
   colors?: Partial<Record<ElementKey, string>>
   /** how the image element is placed; undefined = 'inline' (boxed plate) */
@@ -78,6 +80,22 @@ export interface SlideModel {
 /** where a freshly-freed (or newly added) element starts before it's dragged */
 export const DEFAULT_FREE_POS = { x: 140, y: 600 } as const
 
+/** project-wide on/off + override controls for the slide chrome (the auto
+ *  micro-label, the page counter, the wordmark). undefined = everything on,
+ *  i.e. the original behaviour, so existing designs are unaffected. */
+export interface ProjectChrome {
+  /** the top-left auto micro-label ("field notes · no. 33", etc.). default on.
+   *  off hides only the AUTO text — a per-slide `eyebrow` still shows. */
+  labels?: boolean
+  /** the bottom-right "N / total" page counter. default on. */
+  pageNumbers?: boolean
+  /** the bottom-left antara wordmark. default on. */
+  wordmark?: boolean
+  /** override the title-hash "no. N" entry number used in the hook label.
+   *  omit = auto (derived from the title). integer 1–999. */
+  entryNo?: number
+}
+
 export interface Project {
   title: string
   themeId: string
@@ -86,6 +104,8 @@ export interface Project {
   colors?: ColorOverrides
   /** output aspect ratio; undefined = '4:5' (1080×1350, the original size) */
   ratio?: Ratio
+  /** chrome on/off + entry-number override; undefined = all on */
+  chrome?: ProjectChrome
 }
 
 export function newId(): string {
@@ -264,9 +284,12 @@ export function entryNumber(title: string): number {
 }
 
 export function microLabels(project: Project, theme: Theme): string[] {
+  // labels switched off project-wide: no auto text at all (a per-slide eyebrow
+  // is applied later in the renderer, so explicit kickers still show)
+  if (project.chrome?.labels === false) return project.slides.map(() => '')
   let sections = 0
   let diagrams = 0
-  const no = entryNumber(project.title || 'untitled')
+  const no = project.chrome?.entryNo ?? entryNumber(project.title || 'untitled')
   return project.slides.map((s) => {
     switch (s.type) {
       case 'hook':
@@ -333,6 +356,28 @@ export function sizeFor(s: SlideModel, key: ElementKey): number {
   return s.sizes?.[key] ?? autoSize(s, key)
 }
 
+// per-element auto box width (px on the 1080 canvas) — the effective default the
+// renderer uses when the user hasn't pinned a width. shown as the "auto" readout
+// on the width slider; the renderer keeps these defaults when `widths` is unset.
+export const AUTO_WIDTH: Record<ElementKey, number> = {
+  stat: 888,
+  text: 920,
+  sub: 888,
+  image: 0,
+  annotations: 888,
+  def: 760,
+  attribution: 888,
+}
+
+// the max-width to render an element at: manual override, else undefined so the
+// renderer falls back to its built-in default (keeps "auto" pixel-identical)
+export function widthFor(s: SlideModel, key: ElementKey): number | undefined {
+  return s.widths?.[key]
+}
+
+// editor slider bounds for the width control (shared across text elements)
+export const WIDTH_RANGE = { min: 200, max: 1000, step: 10 } as const
+
 // editor slider bounds per element
 export const SIZE_RANGE: Record<ElementKey, { min: number; max: number; step: number }> = {
   text: { min: 28, max: 160, step: 2 },
@@ -395,6 +440,12 @@ export function importDesign(raw: string): Project {
       for (const [k, v] of Object.entries(d.sizes as Record<string, unknown>))
         if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'number')
           s.sizes[k as ElementKey] = v
+    }
+    if (d.widths && typeof d.widths === 'object') {
+      s.widths = {}
+      for (const [k, v] of Object.entries(d.widths as Record<string, unknown>))
+        if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'number')
+          s.widths[k as ElementKey] = v
     }
     if (d.colors && typeof d.colors === 'object') {
       s.colors = {}
@@ -463,12 +514,23 @@ export function importDesign(raw: string): Project {
       ? (data.ratio as Ratio)
       : undefined
 
+  const chrome: ProjectChrome = {}
+  if (data.chrome && typeof data.chrome === 'object') {
+    const c = data.chrome as Record<string, unknown>
+    for (const k of ['labels', 'pageNumbers', 'wordmark'] as const)
+      if (typeof c[k] === 'boolean') chrome[k] = c[k] as boolean
+    if (typeof c.entryNo === 'number' && Number.isFinite(c.entryNo))
+      chrome.entryNo = Math.min(999, Math.max(1, Math.round(c.entryNo)))
+  }
+  const hasChrome = Object.keys(chrome).length > 0
+
   return {
     title: typeof data.title === 'string' ? data.title : '',
     themeId: String(data.theme ?? data.themeId ?? 'journal'),
     slides,
     ...(colors.fg || colors.dim || colors.accent ? { colors } : {}),
     ...(ratio ? { ratio } : {}),
+    ...(hasChrome ? { chrome } : {}),
   }
 }
 

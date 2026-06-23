@@ -1,5 +1,5 @@
 import type { ElementKey, SlideModel } from '../model'
-import { sizeFor } from '../model'
+import { sizeFor, widthFor } from '../model'
 import type { Palette } from '../tokens'
 import { fonts } from '../tokens'
 import { blockPlate, hlWrap } from './TextPlate'
@@ -144,6 +144,7 @@ export function DiagramSlide({
                 fontWeight: 500,
                 fontSize: sizeFor(slide, 'annotations'),
                 lineHeight: 1.28,
+                maxWidth: widthFor(slide, 'annotations'),
                 color: colorFor('annotations', p.fg),
               }}
             >
@@ -197,6 +198,7 @@ export function DiagramSlide({
                 fontWeight: 500,
                 fontSize: sizeFor(slide, 'annotations'),
                 lineHeight: 1.28,
+                maxWidth: widthFor(slide, 'annotations'),
                 color: colorFor('annotations', p.fg),
               }}
             >
@@ -234,6 +236,7 @@ export function DiagramSlide({
                   fontWeight: 500,
                   fontSize: sizeFor(slide, 'text'),
                   letterSpacing: '0.14em',
+                  maxWidth: widthFor(slide, 'text'),
                   color: colorFor('text', p.dim),
                   whiteSpace: 'pre-wrap',
                 }}
@@ -255,6 +258,7 @@ export function DiagramSlide({
                   fontWeight: 500,
                   fontSize: sizeFor(slide, 'sub'),
                   letterSpacing: '0.16em',
+                  maxWidth: widthFor(slide, 'sub'),
                   color: colorFor('sub', p.dim),
                   whiteSpace: 'pre-wrap',
                 }}
@@ -276,6 +280,7 @@ export function DiagramSlide({
                   fontWeight: 500,
                   fontSize: sizeFor(slide, 'def'),
                   lineHeight: 1.45,
+                  maxWidth: widthFor(slide, 'def'),
                   color: colorFor('def', p.dim),
                   whiteSpace: 'pre-wrap',
                 }}
@@ -297,6 +302,7 @@ export function DiagramSlide({
                   fontWeight: 500,
                   fontSize: sizeFor(slide, 'attribution'),
                   letterSpacing: '0.18em',
+                  maxWidth: widthFor(slide, 'attribution'),
                   color: colorFor('attribution', p.dim),
                 }}
               >

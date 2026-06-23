@@ -14,6 +14,8 @@ export interface CanvasProps {
   assets: Record<string, string>
   /** rendered slide height for the carousel's ratio */
   slideH: number
+  showPageNumber: boolean
+  showWordmark: boolean
   selectedElement: ElementKey | null
   onSelectElement: (key: ElementKey) => void
   onDeselect: () => void
@@ -66,6 +68,8 @@ export function Canvas(props: CanvasProps) {
               theme={props.theme}
               assets={props.assets}
               slideH={slideH}
+              showPageNumber={props.showPageNumber}
+              showWordmark={props.showWordmark}
               selectedElement={props.selectedElement}
               onSelectElement={props.onSelectElement}
               onElementPointerDown={props.onElementPointerDown}

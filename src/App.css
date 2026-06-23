@@ -587,6 +587,48 @@
   text-transform: uppercase;
 }
 
+/* ── chrome toggles ──────────────────────────────────────── */
+
+.chrome-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chrome-toggle,
+.chrome-no {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--cream);
+  cursor: pointer;
+}
+
+.chrome-toggle input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent, #b9a87c);
+}
+
+.chrome-no.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.chrome-no input[type='number'] {
+  width: 64px;
+  padding: 4px 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--cream);
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(185, 168, 124, 0.4);
+  border-radius: 4px;
+}
+
 /* ── asset library ───────────────────────────────────────── */
 
 .asset-drop {

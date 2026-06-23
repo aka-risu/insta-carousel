@@ -305,6 +305,22 @@ export default function App() {
     [patch],
   )
 
+  // set (or clear, when value is undefined → auto) an element's manual width
+  const setWidth = useCallback(
+    (id: string, key: ElementKey, value: number | undefined) =>
+      patch((p) => ({
+        ...p,
+        slides: p.slides.map((s) => {
+          if (s.id !== id) return s
+          const widths = { ...(s.widths ?? {}) }
+          if (value == null) delete widths[key]
+          else widths[key] = value
+          return { ...s, widths }
+        }),
+      })),
+    [patch],
+  )
+
   // set (or clear, when value is undefined) a single element's color override
   const setElementColor = useCallback(
     (id: string, key: ElementKey, value: string | undefined) =>
@@ -341,6 +357,23 @@ export default function App() {
           return { ...s, textBg }
         }),
       })),
+    [patch],
+  )
+
+  // patch the project-wide chrome settings (labels / page numbers / wordmark /
+  // entry-no override). a key set to undefined is dropped → back to auto/on.
+  const setChrome = useCallback(
+    (changes: Partial<NonNullable<Project['chrome']>>) =>
+      patch((p) => {
+        const chrome = { ...(p.chrome ?? {}) }
+        for (const [k, v] of Object.entries(changes)) {
+          if (v === undefined) delete chrome[k as keyof typeof chrome]
+          else (chrome as Record<string, unknown>)[k] = v
+        }
+        // empty → back to the all-on default (undefined drops from saved JSON)
+        if (Object.keys(chrome).length === 0) return { ...p, chrome: undefined }
+        return { ...p, chrome }
+      }),
     [patch],
   )
 
@@ -823,6 +856,8 @@ export default function App() {
             onRemove={removeSlide}
             onAdd={addSlide}
             slideH={slideH}
+            showPageNumber={project.chrome?.pageNumbers !== false}
+            showWordmark={project.chrome?.wordmark !== false}
           />
         </section>
 
@@ -836,6 +871,8 @@ export default function App() {
             theme={theme}
             assets={assets}
             slideH={slideH}
+            showPageNumber={project.chrome?.pageNumbers !== false}
+            showWordmark={project.chrome?.wordmark !== false}
             selectedElement={activeElement}
             onSelectElement={(key) => { setSelectedElement(key); if (isMobile) setSheetOpen(true) }}
             onDeselect={() => setSelectedElement(null)}
@@ -868,6 +905,7 @@ export default function App() {
             setCustomBg={setCustomBg}
             autoColors={autoColors}
             setProjectColor={setProjectColor}
+            setChrome={setChrome}
             assets={assets}
             builtinAssets={BUILTIN_ASSETS}
             userImages={userImages}
@@ -888,6 +926,7 @@ export default function App() {
             bodyRef={bodyRef}
             removeElement={removeElement}
             setSize={setSize}
+            setWidth={setWidth}
             setElementColor={setElementColor}
             setTextBg={setTextBg}
             wrapSelection={wrapSelection}

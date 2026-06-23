@@ -21,6 +21,8 @@ export async function exportCarousel(
   const theme = themeById(project.themeId)
   const labels = microLabels(project, theme)
   const slideH = slideHeightFor(project.ratio)
+  const showPageNumber = project.chrome?.pageNumbers !== false
+  const showWordmark = project.chrome?.wordmark !== false
 
   // offscreen but rendered: off the left edge, natural size, no transforms
   const container = document.createElement('div')
@@ -52,6 +54,8 @@ export async function exportCarousel(
                 theme={theme}
                 assets={assets}
                 slideH={slideH}
+                showPageNumber={showPageNumber}
+                showWordmark={showWordmark}
               />
             </div>
           ))}
