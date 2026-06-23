@@ -1,11 +1,12 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { ElementKey, SlideModel, SlideType } from '../model'
-import { sizeFor, widthFor, DEFAULT_FREE_POS } from '../model'
+import { sizeFor, widthFor, alignFor, DEFAULT_FREE_POS } from '../model'
 import type { Palette, ThemeStyle } from '../tokens'
 import { layout, fonts } from '../tokens'
 import { RichText } from './RichText'
 import { blockPlate, hlWrap } from './TextPlate'
 import { Selectable } from './Selectable'
+import { alignCss } from './align'
 import type { ElementSelection } from './Selectable'
 
 // one renderer for every non-diagram slide: it lays out whichever elements
@@ -50,8 +51,11 @@ export function ContentSlide({
   // a per-element color override beats the palette default when set
   const colorFor = (key: ElementKey, fallback: string) => slide.colors?.[key] || fallback
 
-  // render each present element in the slide's own order (drag-reorderable)
+  // render each present element in the slide's own order (drag-reorderable).
+  // each element carries its own align as both alignSelf (placement on export,
+  // where Selectable is a no-op) and textAlign.
   const renderEl = (key: ElementKey): ReactNode => {
+    const ac = alignCss(alignFor(slide, key))
     switch (key) {
       case 'stat':
         if (!slide.stat) return null
@@ -66,6 +70,8 @@ export function ContentSlide({
               letterSpacing: '-0.02em',
               maxWidth: widthFor(slide, 'stat'),
               color: colorFor('stat', bold ? p.accent : p.fg),
+              alignSelf: ac.alignSelf,
+              textAlign: ac.textAlign,
             }}
           >
             {hlWrap(slide, 'stat', p, slide.stat)}
@@ -87,6 +93,8 @@ export function ContentSlide({
               maxWidth: widthFor(slide, 'text') ?? 920,
               letterSpacing: bold ? '-0.01em' : type === 'hook' ? '-0.005em' : undefined,
               color: colorFor('text', p.fg),
+              alignSelf: ac.alignSelf,
+              textAlign: ac.textAlign,
             }}
           >
             {hlWrap(slide, 'text', p, <RichText text={slide.text} p={p} style={style} />)}
@@ -96,7 +104,7 @@ export function ContentSlide({
         if (!slide.sub && type !== 'hook') return null
         if (type === 'cta') {
           return (
-            <div key="sub" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div key="sub" style={{ display: 'flex', flexDirection: 'column', alignItems: ac.alignSelf, alignSelf: ac.alignSelf }}>
               <div style={{ width: 96, borderTop: `2px solid ${p.accent}`, marginBottom: 72 }} />
               <div
                 style={{
@@ -109,6 +117,7 @@ export function ContentSlide({
                   whiteSpace: 'pre-wrap',
                   maxWidth: widthFor(slide, 'sub'),
                   color: colorFor('sub', p.accent),
+                  textAlign: ac.textAlign,
                 }}
               >
                 {slide.sub.split('\n').filter((l) => l.trim()).join('\n')}
@@ -129,6 +138,8 @@ export function ContentSlide({
               whiteSpace: 'pre-wrap',
               maxWidth: widthFor(slide, 'sub'),
               color: colorFor('sub', p.dim),
+              alignSelf: ac.alignSelf,
+              textAlign: ac.textAlign,
             }}
           >
             {hlWrap(
@@ -165,7 +176,7 @@ export function ContentSlide({
               background: p.mat,
               border: `1px solid ${p.dim}`,
               boxShadow: '0 8px 28px rgba(0,0,0,0.15)',
-              alignSelf: centered ? 'center' : 'flex-start',
+              alignSelf: ac.alignSelf,
               display: 'flex',
             }}
           >
@@ -185,7 +196,7 @@ export function ContentSlide({
               padding: '18px 28px',
               border: `2px dashed ${p.dim}`,
               color: p.dim,
-              alignSelf: centered ? 'center' : 'flex-start',
+              alignSelf: ac.alignSelf,
             }}
           >
             ⚠ missing image · {slide.image}
@@ -210,7 +221,8 @@ export function ContentSlide({
               color: colorFor('def', p.dim),
               maxWidth: widthFor(slide, 'def') ?? 760,
               whiteSpace: 'pre-wrap',
-              textAlign: 'left',
+              alignSelf: ac.alignSelf,
+              textAlign: ac.textAlign,
             }}
           >
             {hlWrap(slide, 'def', p, bold ? <RichText text={slide.def} p={p} style={style} /> : slide.def)}
@@ -229,6 +241,8 @@ export function ContentSlide({
               textTransform: bold ? 'uppercase' : undefined,
               maxWidth: widthFor(slide, 'attribution'),
               color: colorFor('attribution', p.dim),
+              alignSelf: ac.alignSelf,
+              textAlign: ac.textAlign,
             }}
           >
             {hlWrap(slide, 'attribution', p, <>— {slide.attribution}</>)}
@@ -246,12 +260,13 @@ export function ContentSlide({
     .map((key) => {
       const node = renderEl(key)
       if (!node) return null
+      const align = alignFor(slide, key)
       // box/pill/band wrap the whole element; highlight is already inline
       return (
         <Selectable
           key={key}
           el={key}
-          align={preset.align}
+          align={align}
           // a band plate bleeds full-width, so its wrapper must stretch too
           stretch={slide.textBg?.[key]?.style === 'band'}
           free={slide.free}
@@ -262,7 +277,7 @@ export function ContentSlide({
           // images have no font size; everything else can be scaled by drag
           onResizePointerDown={key === 'image' ? undefined : onResizePointerDown}
         >
-          {blockPlate(slide.textBg?.[key], p, preset.align, node, padX)}
+          {blockPlate(slide.textBg?.[key], p, align, node, padX)}
         </Selectable>
       )
     })

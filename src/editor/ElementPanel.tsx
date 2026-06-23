@@ -1,4 +1,5 @@
 import type {
+  Align,
   ElementKey,
   ImageMode,
   SlideModel,
@@ -11,6 +12,7 @@ import {
   IMAGE_FRAC_RANGE,
   SIZE_RANGE,
   WIDTH_RANGE,
+  alignFor,
   autoSize,
   elementDef,
 } from '../model'
@@ -29,13 +31,14 @@ export interface ElementPanelProps {
   setSize: (id: string, key: ElementKey, value: number | undefined) => void
   setWidth: (id: string, key: ElementKey, value: number | undefined) => void
   setElementColor: (id: string, key: ElementKey, value: string | undefined) => void
+  setAlign: (id: string, key: ElementKey, value: Align | undefined) => void
   setTextBg: (id: string, key: ElementKey, value: TextBacking | undefined) => void
   wrapSelection: (open: string, close: string) => void
   onClose: () => void
 }
 
 export function ElementPanel(props: ElementPanelProps) {
-  const { slide, elementKey: key, theme, assets, bodyRef, updateSlide, removeElement, setSize, setWidth, setElementColor, setTextBg, wrapSelection } = props
+  const { slide, elementKey: key, theme, assets, bodyRef, updateSlide, removeElement, setSize, setWidth, setElementColor, setAlign, setTextBg, wrapSelection } = props
   const def = elementDef(slide.type, key)
 
   return (
@@ -153,6 +156,38 @@ export function ElementPanel(props: ElementPanelProps) {
                 onChange={(e) => setWidth(slide.id, key, Number(e.target.value))}
               />
               <span className="size-val">{current}px</span>
+            </div>
+          )
+        })()}
+
+      {/* horizontal alignment — overrides the slide type's default.
+          hidden for images (nothing to align) and diagrams (fixed layout) */}
+      {key !== 'image' &&
+        slide.type !== 'diagram' &&
+        (() => {
+          const cur = slide.aligns?.[key]
+          const effective = alignFor(slide, key)
+          const opts: Align[] = ['left', 'center', 'right', 'spread']
+          return (
+            <div className="size-row">
+              <span className="size-label">align</span>
+              <button
+                className={`size-auto ${cur == null ? 'on' : ''}`}
+                onClick={() => setAlign(slide.id, key, undefined)}
+                title="use the slide type's default alignment"
+              >
+                auto
+              </button>
+              {opts.map((a) => (
+                <button
+                  key={a}
+                  className={`size-auto ${cur === a || (cur == null && effective === a) ? 'on' : ''}`}
+                  onClick={() => setAlign(slide.id, key, a)}
+                  title={a === 'spread' ? 'justify — stretch lines edge-to-edge' : a}
+                >
+                  {a}
+                </button>
+              ))}
             </div>
           )
         })()}

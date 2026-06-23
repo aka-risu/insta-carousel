@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Project, ProjectChrome, SlideModel, ElementKey, SlideOverlay, TextBacking } from '../model'
+import type { Project, ProjectChrome, SlideModel, ElementKey, SlideOverlay, TextBacking, Align } from '../model'
 import { AVAILABLE_ELEMENTS, elementDef } from '../model'
 import type { Theme, CustomThemeData, ColorOverrides } from '../tokens'
 import { CarouselPanel } from './CarouselPanel'
@@ -49,6 +49,7 @@ export interface InspectorProps {
   setSize: (id: string, key: ElementKey, value: number | undefined) => void
   setWidth: (id: string, key: ElementKey, value: number | undefined) => void
   setElementColor: (id: string, key: ElementKey, value: string | undefined) => void
+  setAlign: (id: string, key: ElementKey, value: Align | undefined) => void
   setTextBg: (id: string, key: ElementKey, value: TextBacking | undefined) => void
   wrapSelection: (open: string, close: string) => void
   onCloseElement: () => void
@@ -96,6 +97,7 @@ export function Inspector(props: InspectorProps) {
     setSize,
     setWidth,
     setElementColor,
+    setAlign,
     setTextBg,
     wrapSelection,
     onCloseElement,
@@ -148,6 +150,7 @@ export function Inspector(props: InspectorProps) {
             setSize={setSize}
             setWidth={setWidth}
             setElementColor={setElementColor}
+            setAlign={setAlign}
             setTextBg={setTextBg}
             wrapSelection={wrapSelection}
             onClose={onCloseElement}

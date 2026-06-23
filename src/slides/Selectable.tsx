@@ -1,5 +1,6 @@
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
-import type { DragKey } from '../model'
+import type { Align, DragKey } from '../model'
+import { alignCss } from './align'
 
 // a vivid, theme-independent selection colour so the outline reads on any palette
 export const SELECT_COLOR = '#2f7bff'
@@ -32,7 +33,7 @@ export function Selectable({
   children,
 }: ElementSelection & {
   el: DragKey
-  align?: 'left' | 'center'
+  align?: Align
   /** match a full-bleed band element so its wrapper doesn't clip the bleed */
   stretch?: boolean
   /** free layout: the element is placed absolutely at `pos` instead of stacked */
@@ -51,9 +52,9 @@ export function Selectable({
   const layoutStyle: CSSProperties = free
     ? { position: 'absolute', left: pos?.x ?? 0, top: pos?.y ?? 0, width: 'fit-content' }
     : {
-        width: stretch ? '100%' : 'fit-content',
+        width: stretch || align === 'spread' ? '100%' : 'fit-content',
         maxWidth: '100%',
-        alignSelf: stretch ? 'stretch' : align === 'center' ? 'center' : 'flex-start',
+        alignSelf: stretch ? 'stretch' : alignCss(align).alignSelf,
       }
 
   return (
@@ -70,6 +71,7 @@ export function Selectable({
       }
       style={{
         ...layoutStyle,
+        textAlign: alignCss(align).textAlign,
         cursor: interactive ? (free ? 'move' : 'pointer') : undefined,
         outline: selected ? `5px solid ${SELECT_COLOR}` : '2px dashed transparent',
         outlineOffset: 12,

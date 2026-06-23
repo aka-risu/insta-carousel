@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import type {
+  Align,
   DragKey,
   ElementKey,
   Project,
@@ -409,6 +410,22 @@ export default function App() {
           if (value == null) delete colors[key]
           else colors[key] = value
           return { ...s, colors }
+        }),
+      })),
+    [patch],
+  )
+
+  // set (or clear, when value is undefined → type default) an element's align
+  const setAlign = useCallback(
+    (id: string, key: ElementKey, value: Align | undefined) =>
+      patch((p) => ({
+        ...p,
+        slides: p.slides.map((s) => {
+          if (s.id !== id) return s
+          const aligns = { ...(s.aligns ?? {}) }
+          if (value == null) delete aligns[key]
+          else aligns[key] = value
+          return { ...s, aligns }
         }),
       })),
     [patch],
@@ -1242,6 +1259,7 @@ export default function App() {
             setSize={setSize}
             setWidth={setWidth}
             setElementColor={setElementColor}
+            setAlign={setAlign}
             setTextBg={setTextBg}
             wrapSelection={wrapSelection}
             onCloseElement={() => setSelectedElement(null)}

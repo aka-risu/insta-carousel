@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react'
-import type { ElementKey, SlideModel, TextBacking } from '../model'
+import type { Align, ElementKey, SlideModel, TextBacking } from '../model'
 import type { Palette } from '../tokens'
 import { resolveColor } from '../tokens'
+import { alignCss } from './align'
 
 // colored shapes behind text so it reads on a busy background image.
 // box / pill / band wrap the whole element; highlight is a per-line marker that
@@ -43,7 +44,7 @@ export function highlightStyle(b: TextBacking, p: Palette): CSSProperties {
 export function blockPlate(
   backing: TextBacking | undefined,
   p: Palette,
-  align: 'left' | 'center',
+  align: Align,
   node: ReactNode,
   bleed = 0,
 ): ReactNode {
@@ -62,7 +63,7 @@ export function blockPlate(
           marginLeft: -bleed,
           marginRight: -bleed,
           alignSelf: 'stretch',
-          textAlign: align,
+          textAlign: alignCss(align).textAlign,
           boxSizing: 'border-box',
         }}
       >
@@ -75,9 +76,10 @@ export function blockPlate(
   const base: CSSProperties = {
     background: bg,
     padding: PAD[backing.style],
-    width: 'fit-content',
+    width: align === 'spread' ? '100%' : 'fit-content',
     maxWidth: '100%',
-    alignSelf: align === 'center' ? 'center' : 'flex-start',
+    alignSelf: alignCss(align).alignSelf,
+    textAlign: alignCss(align).textAlign,
     boxSizing: 'border-box',
   }
   if (backing.style === 'pill') base.borderRadius = 999

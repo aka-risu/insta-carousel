@@ -15,6 +15,9 @@ export const IMAGE_FRAC_RANGE = { min: 0.3, max: 0.6, step: 0.02 } as const
 export const BG_SCALE_RANGE = { min: 1, max: 3, step: 0.05 } as const
 export const BG_SCALE_MAX = BG_SCALE_RANGE.max
 
+// horizontal alignment for a text element. 'spread' = justify (edge-to-edge).
+export type Align = 'left' | 'center' | 'right' | 'spread'
+
 export type ElementKey =
   | 'stat'
   | 'text'
@@ -73,6 +76,8 @@ export interface SlideModel {
   widths?: Partial<Record<ElementKey, number>>
   /** per-element text color override; missing key = use the palette color */
   colors?: Partial<Record<ElementKey, string>>
+  /** per-element horizontal alignment override; missing key = the type default */
+  aligns?: Partial<Record<ElementKey, Align>>
   /** how the image element is placed; undefined = 'inline' (boxed plate) */
   imageMode?: ImageMode
   /** fraction of slide height a top/bottom full-bleed image takes */
@@ -403,6 +408,27 @@ export function widthFor(s: SlideModel, key: ElementKey): number | undefined {
 // editor slider bounds for the width control (shared across text elements)
 export const WIDTH_RANGE = { min: 200, max: 1000, step: 10 } as const
 
+// default horizontal alignment per slide type — the single source the renderer
+// preset and the editor both read, so an "auto" element matches what's drawn.
+// diagram has its own fixed layout; the value is unused there.
+export const SLIDE_ALIGN: Record<SlideType, Align> = {
+  hook: 'left',
+  text: 'left',
+  fact: 'left',
+  quote: 'center',
+  cta: 'center',
+  diagram: 'left',
+}
+
+export function defaultAlign(type: SlideType): Align {
+  return SLIDE_ALIGN[type]
+}
+
+// the alignment to render an element at: manual override, else the type default
+export function alignFor(s: SlideModel, key: ElementKey): Align {
+  return s.aligns?.[key] ?? defaultAlign(s.type)
+}
+
 // editor slider bounds per element
 export const SIZE_RANGE: Record<ElementKey, { min: number; max: number; step: number }> = {
   text: { min: 28, max: 160, step: 2 },
@@ -483,6 +509,13 @@ export function slideFromJSON(d: Record<string, unknown>): SlideModel {
     for (const [k, v] of Object.entries(d.colors as Record<string, unknown>))
       if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'string')
         s.colors[k as ElementKey] = v
+  }
+  if (d.aligns && typeof d.aligns === 'object') {
+    s.aligns = {}
+    const ok: Align[] = ['left', 'center', 'right', 'spread']
+    for (const [k, v] of Object.entries(d.aligns as Record<string, unknown>))
+      if (ELEMENT_ORDER.includes(k as ElementKey) && ok.includes(v as Align))
+        s.aligns[k as ElementKey] = v as Align
   }
   if (d.imageMode === 'top' || d.imageMode === 'bottom' || d.imageMode === 'inline')
     s.imageMode = d.imageMode
@@ -703,6 +736,7 @@ export function slideToJSON(s: SlideModel): Record<string, unknown> {
   if (s.sizes && Object.keys(s.sizes).length) out.sizes = s.sizes
   if (s.widths && Object.keys(s.widths).length) out.widths = s.widths
   if (s.colors && Object.keys(s.colors).length) out.colors = s.colors
+  if (s.aligns && Object.keys(s.aligns).length) out.aligns = s.aligns
   if (s.imageMode) out.imageMode = s.imageMode
   if (typeof s.imageFrac === 'number') out.imageFrac = s.imageFrac
   if (s.imageFocus) out.imageFocus = s.imageFocus
