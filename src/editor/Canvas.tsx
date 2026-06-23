@@ -21,6 +21,10 @@ export interface CanvasProps {
   onDeselect: () => void
   onElementPointerDown: (e: ReactPointerEvent, key: DragKey) => void
   onResizePointerDown: (e: ReactPointerEvent, key: DragKey) => void
+  onBandPointerDown: (e: ReactPointerEvent) => void
+  onBgPointerDown: (e: ReactPointerEvent) => void
+  onRequestBgPan: () => void
+  bgPanning: boolean
 }
 
 // largest the slide is ever drawn on screen — keeps a 1:1 slide from blowing
@@ -74,6 +78,10 @@ export function Canvas(props: CanvasProps) {
               onSelectElement={props.onSelectElement}
               onElementPointerDown={props.onElementPointerDown}
               onResizePointerDown={props.onResizePointerDown}
+              onBandPointerDown={props.onBandPointerDown}
+              onBgPointerDown={props.onBgPointerDown}
+              onRequestBgPan={props.onRequestBgPan}
+              bgPanning={props.bgPanning}
             />
           </div>
         </div>

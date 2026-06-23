@@ -208,6 +208,9 @@ export default function App() {
   // which element on the selected slide is highlighted (synced between the
   // editor cards and the slide previews). null = whole slide, no element.
   const [selectedElement, setSelectedElement] = useState<DragKey | null>(null)
+  // the slide id whose background is in reposition (crop-pan) mode, if any.
+  // tied to an id so switching slides leaves the mode automatically.
+  const [bgPanId, setBgPanId] = useState<string | null>(null)
   const [userImages, setUserImages] = useState<Record<string, string>>(loadImages)
   const [storageFull, setStorageFull] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -544,6 +547,77 @@ export default function App() {
     },
     [selected, updateSlide],
   )
+
+  // ── image crop-pan (object-position) ───────────────────────
+  // dragging a cover-fit image slides which part of it shows. focus is stored as
+  // {x,y} fractions in [0,1]; we map the pointer delta to a fraction via the
+  // cover overflow (how much of the image is cropped on each axis), so the image
+  // tracks the cursor 1:1 along whichever axis actually overflows.
+  const startImgPan = useCallback(
+    (e: ReactPointerEvent, img: HTMLImageElement, field: 'imageFocus' | 'bgFocus') => {
+      const slide = selected
+      if (!slide) return
+      const rect = img.getBoundingClientRect()
+      const { naturalWidth: nw, naturalHeight: nh } = img
+      if (!nw || !nh || !rect.width || !rect.height) return
+      const cover = Math.max(rect.width / nw, rect.height / nh)
+      const overflowX = nw * cover - rect.width
+      const overflowY = nh * cover - rect.height
+      const cur = slide[field] ?? { x: 0.5, y: 0.5 }
+      const id = slide.id
+      const startX = e.clientX
+      const startY = e.clientY
+      let moved = false
+      const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
+
+      const onMove = (ev: PointerEvent) => {
+        const dx = ev.clientX - startX
+        const dy = ev.clientY - startY
+        if (!moved && Math.hypot(dx, dy) < 4) return
+        moved = true
+        ev.preventDefault()
+        updateSlide(id, {
+          [field]: {
+            x: overflowX > 0 ? clamp01(cur.x - dx / overflowX) : cur.x,
+            y: overflowY > 0 ? clamp01(cur.y - dy / overflowY) : cur.y,
+          },
+        })
+      }
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+    },
+    [selected, updateSlide],
+  )
+
+  const onBandPointerDown = useCallback(
+    (e: ReactPointerEvent) => startImgPan(e, e.currentTarget as HTMLImageElement, 'imageFocus'),
+    [startImgPan],
+  )
+
+  const onBgPointerDown = useCallback(
+    (e: ReactPointerEvent) => {
+      const canvas = (e.currentTarget as HTMLElement).closest('[data-slide-canvas]')
+      const img = canvas?.querySelector('[data-bg-image]') as HTMLImageElement | null
+      if (img) startImgPan(e, img, 'bgFocus')
+    },
+    [startImgPan],
+  )
+
+  // bg-reposition mode applies only while its slide stays selected
+  const bgPanning = bgPanId !== null && bgPanId === selectedId
+  // esc / enter leaves background-reposition mode
+  useEffect(() => {
+    if (!bgPanning) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Enter') setBgPanId(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [bgPanning])
 
   // dragging the corner handle scales the element's font size. the ratio of the
   // pointer's distance from the (anchored) top-left corner drives the new size,
@@ -1040,9 +1114,13 @@ export default function App() {
             showWordmark={project.chrome?.wordmark !== false}
             selectedElement={activeDragKey}
             onSelectElement={(key) => { setSelectedElement(key); if (isMobile) setSheetOpen(true) }}
-            onDeselect={() => setSelectedElement(null)}
+            onDeselect={() => { setSelectedElement(null); setBgPanId(null) }}
             onElementPointerDown={onElementPointerDown}
             onResizePointerDown={onElementResizeStart}
+            onBandPointerDown={onBandPointerDown}
+            onBgPointerDown={onBgPointerDown}
+            onRequestBgPan={() => selected && setBgPanId(selected.id)}
+            bgPanning={bgPanning}
           />
         </section>
 

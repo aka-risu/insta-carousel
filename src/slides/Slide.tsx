@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import type { SlideModel } from '../model'
 import { DEFAULT_IMAGE_FRAC, IMAGE_FRAC_RANGE } from '../model'
 import type { Theme, Palette } from '../tokens'
@@ -7,6 +7,7 @@ import { AntaraWordmark } from './AntaraWordmark'
 import { ContentSlide } from './ContentSlide'
 import { DiagramSlide } from './DiagramSlide'
 import type { ElementSelection } from './Selectable'
+import { SELECT_COLOR } from './Selectable'
 
 export interface SlideProps extends ElementSelection {
   slide: SlideModel
@@ -20,6 +21,15 @@ export interface SlideProps extends ElementSelection {
   /** chrome toggles; default on (undefined = shown), matching legacy behaviour */
   showPageNumber?: boolean
   showWordmark?: boolean
+  /** begins a crop-pan drag on the full-bleed image band; editor preview only */
+  onBandPointerDown?: (e: ReactPointerEvent) => void
+  /** begins a crop-pan drag on the full-slide background; fired by the capture
+   *  layer while in background-reposition mode; editor preview only */
+  onBgPointerDown?: (e: ReactPointerEvent) => void
+  /** ask to enter background-reposition mode (double-click); editor preview only */
+  onRequestBgPan?: () => void
+  /** true while this slide is in background-reposition mode */
+  bgPanning?: boolean
 }
 
 // the one slide component — used verbatim for both preview and export
@@ -37,6 +47,10 @@ export function Slide({
   onSelectElement,
   onElementPointerDown,
   onResizePointerDown,
+  onBandPointerDown,
+  onBgPointerDown,
+  onRequestBgPan,
+  bgPanning = false,
 }: SlideProps) {
   // cta always renders in the theme's inverted palette
   const p: Palette = slide.type === 'cta' ? theme.inverted : theme.base
@@ -77,6 +91,12 @@ export function Slide({
   )
   const bandH = hasBand ? Math.round(slideH * bandFrac) : 0
   const bandUrl = hasBand && slide.image ? assets[slide.image] : undefined
+  // crop focus → object-position; undefined keeps the browser default (center),
+  // so an untouched image exports byte-identical to before
+  const bgPos = slide.bgFocus ? `${slide.bgFocus.x * 100}% ${slide.bgFocus.y * 100}%` : undefined
+  const bandPos = slide.imageFocus
+    ? `${slide.imageFocus.x * 100}% ${slide.imageFocus.y * 100}%`
+    : undefined
   const contentTop = hasBand && bandSide === 'top' ? bandH : 0
   const contentBottom = hasBand && bandSide === 'bottom' ? bandH : 0
 
@@ -94,18 +114,24 @@ export function Slide({
   }
 
   return (
-    <div style={rootStyle}>
+    <div
+      style={rootStyle}
+      // double-click a slide with a background image to enter reposition mode
+      onDoubleClick={bgUrl && onRequestBgPan ? () => onRequestBgPan() : undefined}
+    >
       {/* full-bleed background plate (rendered as <img> so export inlines it) */}
       {bgUrl && (
         <img
           src={bgUrl}
           aria-hidden
+          data-bg-image
           style={{
             position: 'absolute',
             inset: 0,
             width: '100%',
             height: '100%',
             objectFit: 'cover',
+            objectPosition: bgPos,
             pointerEvents: 'none',
           }}
         />
@@ -125,6 +151,7 @@ export function Slide({
           <img
             src={bandUrl}
             alt={slide.image}
+            onPointerDown={onBandPointerDown}
             style={{
               position: 'absolute',
               left: 0,
@@ -133,7 +160,11 @@ export function Slide({
               width: '100%',
               height: bandH,
               objectFit: 'cover',
-              pointerEvents: 'none',
+              objectPosition: bandPos,
+              // draggable to pan the crop only in the editor; inert on export
+              pointerEvents: onBandPointerDown ? 'auto' : 'none',
+              cursor: onBandPointerDown ? 'grab' : undefined,
+              touchAction: onBandPointerDown ? 'none' : undefined,
             }}
           />
         ) : (
@@ -243,6 +274,43 @@ export function Slide({
           }}
         >
           {index + 1} / {total}
+        </div>
+      )}
+
+      {/* background-reposition mode: a full-slide capture layer so the drag lands
+          on the background no matter what content sits over it */}
+      {bgPanning && bgUrl && onBgPointerDown && (
+        <div
+          onPointerDown={onBgPointerDown}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            cursor: 'grab',
+            touchAction: 'none',
+            boxShadow: `inset 0 0 0 4px ${SELECT_COLOR}`,
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              padding: '8px 16px',
+              borderRadius: 999,
+              background: SELECT_COLOR,
+              color: '#fff',
+              fontFamily: fonts.sans,
+              fontSize: 22,
+              fontWeight: 600,
+              letterSpacing: '0.02em',
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+            }}
+          >
+            drag to reposition · esc to finish
+          </div>
         </div>
       )}
     </div>

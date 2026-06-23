@@ -74,10 +74,16 @@ export interface SlideModel {
   imageMode?: ImageMode
   /** fraction of slide height a top/bottom full-bleed image takes */
   imageFrac?: number
+  /** crop focus for a full-bleed band image (maps to object-position), fractions
+   *  0–1; undefined = centered (the original behaviour) */
+  imageFocus?: { x: number; y: number }
   /** background-plate id for image-backed themes; undefined = cycle by position */
   background?: string
   /** full-slide background image (asset name); overrides the theme plate on any theme */
   bgImage?: string
+  /** crop focus for the full-slide background image (maps to object-position),
+   *  fractions 0–1; undefined = centered (the original behaviour) */
+  bgFocus?: { x: number; y: number }
   /** tint/scrim drawn over the background image */
   overlay?: SlideOverlay
   /** per-element legibility plate behind text */
@@ -427,6 +433,16 @@ const CONTENT_KEYS: ElementKey[] = [
   'annotations',
 ]
 
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
+
+/** Parse a `{x,y}` crop-focus, clamping each axis to [0,1]; undefined if absent/invalid. */
+function parseFocus(v: unknown): { x: number; y: number } | undefined {
+  if (!v || typeof v !== 'object') return undefined
+  const f = v as Record<string, unknown>
+  if (typeof f.x !== 'number' || typeof f.y !== 'number') return undefined
+  return { x: clamp01(f.x), y: clamp01(f.y) }
+}
+
 /** Map one raw JSON object to a valid SlideModel (fresh id). The single
  *  validation choke point shared by whole-project import and single-slide insert. */
 export function slideFromJSON(d: Record<string, unknown>): SlideModel {
@@ -465,8 +481,12 @@ export function slideFromJSON(d: Record<string, unknown>): SlideModel {
   if (d.imageMode === 'top' || d.imageMode === 'bottom' || d.imageMode === 'inline')
     s.imageMode = d.imageMode
   if (typeof d.imageFrac === 'number') s.imageFrac = d.imageFrac
+  const imgFocus = parseFocus(d.imageFocus)
+  if (imgFocus) s.imageFocus = imgFocus
   if (typeof d.background === 'string') s.background = d.background
   if (typeof d.bgImage === 'string') s.bgImage = d.bgImage
+  const bgFocus = parseFocus(d.bgFocus)
+  if (bgFocus) s.bgFocus = bgFocus
 
   const ov = d.overlay as Record<string, unknown> | undefined
   if (ov && typeof ov === 'object' && typeof ov.color === 'string') {
@@ -678,8 +698,10 @@ export function slideToJSON(s: SlideModel): Record<string, unknown> {
   if (s.colors && Object.keys(s.colors).length) out.colors = s.colors
   if (s.imageMode) out.imageMode = s.imageMode
   if (typeof s.imageFrac === 'number') out.imageFrac = s.imageFrac
+  if (s.imageFocus) out.imageFocus = s.imageFocus
   if (s.background) out.background = s.background
   if (s.bgImage) out.bgImage = s.bgImage
+  if (s.bgFocus) out.bgFocus = s.bgFocus
   if (s.overlay) out.overlay = s.overlay
   if (s.textBg && Object.keys(s.textBg).length) out.textBg = s.textBg
   if (s.free) out.free = true
