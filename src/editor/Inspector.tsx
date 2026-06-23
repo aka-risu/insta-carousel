@@ -29,6 +29,7 @@ export interface InspectorProps {
   storageFull: boolean
   addFiles: (files: FileList | File[], onAdded?: (names: string[]) => void) => void | Promise<void>
   removeAsset: (name: string) => void
+  clearUnusedImages: () => number
 
   // slide-level (SlidePanel)
   patch: (fn: (p: Project) => Project) => void
@@ -54,6 +55,8 @@ export interface InspectorProps {
 
   // add-element chips
   addElement: (id: string, key: ElementKey) => void
+  // select an element from the slide's element menu (opens the element panel)
+  selectElement: (key: ElementKey) => void
 }
 
 export function Inspector(props: InspectorProps) {
@@ -79,6 +82,7 @@ export function Inspector(props: InspectorProps) {
     storageFull,
     addFiles,
     removeAsset,
+    clearUnusedImages,
     patch,
     updateSlide,
     setOverlay,
@@ -96,6 +100,7 @@ export function Inspector(props: InspectorProps) {
     wrapSelection,
     onCloseElement,
     addElement,
+    selectElement,
   } = props
 
   return (
@@ -128,6 +133,7 @@ export function Inspector(props: InspectorProps) {
           storageFull={storageFull}
           addFiles={addFiles}
           removeAsset={removeAsset}
+          clearUnusedImages={clearUnusedImages}
         />
       ) : selected ? (
         activeElement ? (
@@ -157,6 +163,38 @@ export function Inspector(props: InspectorProps) {
               setOverlay={setOverlay}
               addFiles={addFiles}
             />
+
+            {selected.elements.length > 0 && (
+              <div className="field">
+                <span className="field-label">elements</span>
+                <div className="element-list">
+                  {selected.elements.map((k) => {
+                    const empty = !selected[k]
+                    return (
+                      <button
+                        key={k}
+                        className="element-row"
+                        title={
+                          empty
+                            ? `${elementDef(selected.type, k).label} — empty; select to add text`
+                            : elementDef(selected.type, k).hint
+                        }
+                        onClick={() => selectElement(k)}
+                      >
+                        <span className="element-row-label">
+                          {elementDef(selected.type, k).label}
+                        </span>
+                        {empty && <span className="element-row-empty">empty</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+                <span className="field-hint">
+                  every element on this slide — click to edit it. an empty element won't show on
+                  the slide until you give it text.
+                </span>
+              </div>
+            )}
 
             {selected.type !== 'diagram' && (
               <div className="field">

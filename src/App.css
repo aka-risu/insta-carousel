@@ -21,6 +21,21 @@
   color: var(--accent);
 }
 
+/* ── bottom bar ──────────────────────────────────────────── */
+
+.bottombar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  border-top: 1px solid rgba(185, 168, 124, 0.25);
+  background: var(--desk);
+}
+
+.bottombar-spacer {
+  flex: 1;
+}
+
 .title-input {
   flex: 1;
   font-family: var(--serif);
@@ -65,9 +80,14 @@
   cursor: pointer;
 }
 
-.ghost-btn:hover {
+.ghost-btn:hover:not(:disabled) {
   color: var(--cream);
   border-color: var(--accent);
+}
+
+.ghost-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .export-btn {
@@ -228,6 +248,44 @@
 .add-chip:hover {
   color: var(--cream);
   border-color: var(--accent);
+}
+
+/* ── element menu (all elements on a slide) ──────────────── */
+
+.element-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.element-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 8px 12px;
+  color: var(--cream);
+  background: var(--desk-2);
+  border: 1px solid rgba(185, 168, 124, 0.3);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.element-row:hover {
+  border-color: var(--accent);
+}
+
+.element-row-empty {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faded);
+  opacity: 0.7;
 }
 
 /* ── filmstrip ───────────────────────────────────────────── */
@@ -923,6 +981,24 @@
   .topbar .export-btn {
     padding: 7px 12px;
     font-size: 12px;
+  }
+
+  .bottombar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .bottombar-spacer {
+    display: none;
+  }
+  .bottombar .ghost-btn {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+
+  /* keep the edit FAB clear of the bottom bar */
+  .sheet-toggle {
+    bottom: 64px;
   }
 
   .workspace {

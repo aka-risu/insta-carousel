@@ -22,6 +22,7 @@ export interface CarouselPanelProps {
   storageFull: boolean
   addFiles: (files: FileList | File[], onAdded?: (names: string[]) => void) => void | Promise<void>
   removeAsset: (name: string) => void
+  clearUnusedImages: () => number
 }
 
 export function CarouselPanel(props: CarouselPanelProps) {
@@ -257,6 +258,24 @@ export function CarouselPanel(props: CarouselPanelProps) {
             </span>
           ))}
         </div>
+      )}
+
+      {Object.keys(props.userImages).length > 0 && (
+        <button
+          type="button"
+          className="ghost-btn"
+          style={{ marginTop: 8 }}
+          onClick={() => {
+            const n = props.clearUnusedImages()
+            window.alert(
+              n > 0
+                ? `Freed ${n} unused image${n === 1 ? '' : 's'} from storage.`
+                : 'No unused images — every upload is used by a slide.',
+            )
+          }}
+        >
+          free storage (remove unused images)
+        </button>
       )}
     </>
   )
