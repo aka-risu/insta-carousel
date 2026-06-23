@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { SlideModel, DragKey } from '../model'
+import { BG_SCALE_RANGE } from '../model'
 import type { Theme } from '../tokens'
 import { layout } from '../tokens'
 import { Slide } from '../slides/Slide'
@@ -24,6 +25,8 @@ export interface CanvasProps {
   onBandPointerDown: (e: ReactPointerEvent) => void
   onBgPointerDown: (e: ReactPointerEvent) => void
   onRequestBgPan: () => void
+  onToggleBgPan: () => void
+  onSetBgScale: (z: number) => void
   bgPanning: boolean
 }
 
@@ -56,8 +59,36 @@ export function Canvas(props: CanvasProps) {
   const w = Math.round(layout.slideW * scale)
   const h = Math.round(slideH * scale)
 
+  // panning targets a per-slide background image the user added (theme plates are
+  // pre-fit, so they don't get the control)
+  const hasBg = !!props.slide?.bgImage
+
   return (
     <div className="canvas-mat" ref={matRef} onClick={props.onDeselect}>
+      {props.slide && hasBg && (
+        <div
+          className="bg-pan-bar"
+          style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button className="ghost-btn" onClick={props.onToggleBgPan}>
+            {props.bgPanning ? 'done repositioning' : 'reposition background'}
+          </button>
+          {props.bgPanning && (
+            <label className="bg-pan-zoom">
+              zoom
+              <input
+                type="range"
+                min={BG_SCALE_RANGE.min}
+                max={BG_SCALE_RANGE.max}
+                step={BG_SCALE_RANGE.step}
+                value={props.slide.bgScale ?? 1}
+                onChange={(e) => props.onSetBgScale(Number(e.target.value))}
+              />
+            </label>
+          )}
+        </div>
+      )}
       {props.slide && (
         <div className="canvas-frame" style={{ width: w, height: h }}>
           <div

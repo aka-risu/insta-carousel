@@ -766,7 +766,10 @@
   min-height: 0;
 }
 
-.canvas-mat { height: 100%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.canvas-mat { position: relative; height: 100%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.bg-pan-bar { display: flex; align-items: center; gap: 10px; }
+.bg-pan-zoom { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #fff; background: rgba(20, 20, 20, 0.7); padding: 4px 12px; border-radius: 999px; }
+.bg-pan-zoom input[type="range"] { width: 120px; }
 .canvas-frame { overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,0.18); border-radius: 6px; }
 
 .preview-grid {

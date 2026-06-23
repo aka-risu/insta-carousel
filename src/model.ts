@@ -11,6 +11,9 @@ export type ImageMode = 'inline' | 'top' | 'bottom'
 
 export const DEFAULT_IMAGE_FRAC = 0.45
 export const IMAGE_FRAC_RANGE = { min: 0.3, max: 0.6, step: 0.02 } as const
+// background image zoom: 1 = cover fit (can't go lower without exposing gaps)
+export const BG_SCALE_RANGE = { min: 1, max: 3, step: 0.05 } as const
+export const BG_SCALE_MAX = BG_SCALE_RANGE.max
 
 export type ElementKey =
   | 'stat'
@@ -84,6 +87,9 @@ export interface SlideModel {
   /** crop focus for the full-slide background image (maps to object-position),
    *  fractions 0–1; undefined = centered (the original behaviour) */
   bgFocus?: { x: number; y: number }
+  /** zoom factor for the full-slide background image, ≥1 (1 = cover fit, the
+   *  original behaviour); scales up around the focus point */
+  bgScale?: number
   /** tint/scrim drawn over the background image */
   overlay?: SlideOverlay
   /** per-element legibility plate behind text */
@@ -487,6 +493,7 @@ export function slideFromJSON(d: Record<string, unknown>): SlideModel {
   if (typeof d.bgImage === 'string') s.bgImage = d.bgImage
   const bgFocus = parseFocus(d.bgFocus)
   if (bgFocus) s.bgFocus = bgFocus
+  if (typeof d.bgScale === 'number' && d.bgScale > 1) s.bgScale = Math.min(BG_SCALE_MAX, d.bgScale)
 
   const ov = d.overlay as Record<string, unknown> | undefined
   if (ov && typeof ov === 'object' && typeof ov.color === 'string') {
@@ -702,6 +709,7 @@ export function slideToJSON(s: SlideModel): Record<string, unknown> {
   if (s.background) out.background = s.background
   if (s.bgImage) out.bgImage = s.bgImage
   if (s.bgFocus) out.bgFocus = s.bgFocus
+  if (typeof s.bgScale === 'number' && s.bgScale > 1) out.bgScale = s.bgScale
   if (s.overlay) out.overlay = s.overlay
   if (s.textBg && Object.keys(s.textBg).length) out.textBg = s.textBg
   if (s.free) out.free = true

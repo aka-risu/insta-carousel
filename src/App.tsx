@@ -554,15 +554,26 @@ export default function App() {
   // cover overflow (how much of the image is cropped on each axis), so the image
   // tracks the cursor 1:1 along whichever axis actually overflows.
   const startImgPan = useCallback(
-    (e: ReactPointerEvent, img: HTMLImageElement, field: 'imageFocus' | 'bgFocus') => {
+    (
+      e: ReactPointerEvent,
+      img: HTMLImageElement,
+      field: 'imageFocus' | 'bgFocus',
+      // the un-zoomed display box (defaults to the image's own rect) and any
+      // extra zoom applied on top of cover — both needed so a zoomed background
+      // still tracks the cursor 1:1
+      opts: { box?: DOMRect; zoom?: number } = {},
+    ) => {
       const slide = selected
       if (!slide) return
-      const rect = img.getBoundingClientRect()
+      e.preventDefault() // suppress native image drag / text selection
+      const box = opts.box ?? img.getBoundingClientRect()
+      const zoom = opts.zoom ?? 1
       const { naturalWidth: nw, naturalHeight: nh } = img
-      if (!nw || !nh || !rect.width || !rect.height) return
-      const cover = Math.max(rect.width / nw, rect.height / nh)
-      const overflowX = nw * cover - rect.width
-      const overflowY = nh * cover - rect.height
+      if (!nw || !nh || !box.width || !box.height) return
+      const cover = Math.max(box.width / nw, box.height / nh)
+      // screen px of crop overflow the focus spans, magnified by any extra zoom
+      const overflowX = (nw * cover - box.width) * zoom
+      const overflowY = (nh * cover - box.height) * zoom
       const cur = slide[field] ?? { x: 0.5, y: 0.5 }
       const id = slide.id
       const startX = e.clientX
@@ -602,9 +613,26 @@ export default function App() {
     (e: ReactPointerEvent) => {
       const canvas = (e.currentTarget as HTMLElement).closest('[data-slide-canvas]')
       const img = canvas?.querySelector('[data-bg-image]') as HTMLImageElement | null
-      if (img) startImgPan(e, img, 'bgFocus')
+      if (!img || !canvas) return
+      // the bg img carries the zoom transform, so its own rect is scaled; use the
+      // canvas (un-zoomed) box and pass the zoom factor separately
+      startImgPan(e, img, 'bgFocus', {
+        box: canvas.getBoundingClientRect(),
+        zoom: selected?.bgScale ?? 1,
+      })
     },
-    [startImgPan],
+    [startImgPan, selected],
+  )
+
+  const toggleBgPan = useCallback(() => {
+    setBgPanId((cur) => (cur === selectedId ? null : selectedId))
+  }, [selectedId])
+
+  const setBgScale = useCallback(
+    (z: number) => {
+      if (selected) updateSlide(selected.id, { bgScale: z })
+    },
+    [selected, updateSlide],
   )
 
   // bg-reposition mode applies only while its slide stays selected
@@ -1120,6 +1148,8 @@ export default function App() {
             onBandPointerDown={onBandPointerDown}
             onBgPointerDown={onBgPointerDown}
             onRequestBgPan={() => selected && setBgPanId(selected.id)}
+            onToggleBgPan={toggleBgPan}
+            onSetBgScale={setBgScale}
             bgPanning={bgPanning}
           />
         </section>

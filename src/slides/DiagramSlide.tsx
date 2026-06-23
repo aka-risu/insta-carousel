@@ -1,8 +1,9 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { DragKey, ElementKey, SlideModel } from '../model'
 import { sizeFor, widthFor, DEFAULT_FREE_POS } from '../model'
-import type { Palette } from '../tokens'
+import type { Palette, ThemeStyle } from '../tokens'
 import { fonts } from '../tokens'
+import { RichText } from './RichText'
 import { blockPlate, hlWrap } from './TextPlate'
 import { Selectable } from './Selectable'
 import type { ElementSelection } from './Selectable'
@@ -17,6 +18,7 @@ import type { ElementSelection } from './Selectable'
 export function DiagramSlide({
   slide,
   p,
+  style = 'editorial',
   assets,
   selectedElement,
   onSelectElement,
@@ -25,6 +27,7 @@ export function DiagramSlide({
 }: {
   slide: SlideModel
   p: Palette
+  style?: ThemeStyle
   assets: Record<string, string>
 } & ElementSelection) {
   const sel = { selectedElement, onSelectElement }
@@ -164,7 +167,11 @@ export function DiagramSlide({
       },
     }
     const inner =
-      key === 'attribution' ? <>— {slide.attribution}</> : slide[key]
+      key === 'attribution' ? (
+        <>— {slide.attribution}</>
+      ) : (
+        <RichText text={slide[key] as string} p={p} style={style} />
+      )
     return blockPlate(
       slide.textBg?.[key],
       p,

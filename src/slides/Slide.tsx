@@ -94,6 +94,9 @@ export function Slide({
   // crop focus → object-position; undefined keeps the browser default (center),
   // so an untouched image exports byte-identical to before
   const bgPos = slide.bgFocus ? `${slide.bgFocus.x * 100}% ${slide.bgFocus.y * 100}%` : undefined
+  // background zoom: scale up around the focus point. undefined/1 = cover fit, so
+  // an untouched background exports byte-identical to before
+  const bgScale = slide.bgScale && slide.bgScale > 1 ? slide.bgScale : undefined
   const bandPos = slide.imageFocus
     ? `${slide.imageFocus.x * 100}% ${slide.imageFocus.y * 100}%`
     : undefined
@@ -132,6 +135,8 @@ export function Slide({
             height: '100%',
             objectFit: 'cover',
             objectPosition: bgPos,
+            transform: bgScale ? `scale(${bgScale})` : undefined,
+            transformOrigin: bgScale ? (bgPos ?? '50% 50%') : undefined,
             pointerEvents: 'none',
           }}
         />
@@ -151,6 +156,9 @@ export function Slide({
           <img
             src={bandUrl}
             alt={slide.image}
+            // <img> is natively draggable; that hijacks the pointer and kills the
+            // pan drag, so disable it when the band is interactive
+            draggable={false}
             onPointerDown={onBandPointerDown}
             style={{
               position: 'absolute',
@@ -333,6 +341,7 @@ function renderType(
       <DiagramSlide
         slide={slide}
         p={p}
+        style={style}
         assets={assets}
         {...sel}
         onElementPointerDown={onElementPointerDown}
