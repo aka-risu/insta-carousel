@@ -41,6 +41,8 @@ import { exportCarousel } from './exporter'
 import { Inspector } from './editor/Inspector'
 import { Filmstrip } from './editor/Filmstrip'
 import { Canvas } from './editor/Canvas'
+import { computeSnap } from './editor/snapGuides'
+import type { Box, Guide } from './editor/snapGuides'
 import { SEED_PROJECT, templateProject } from './seed'
 import sealPlateUrl from './assets/seal-plate.jpg'
 import './App.css'
@@ -208,6 +210,10 @@ export default function App() {
   // which element on the selected slide is highlighted (synced between the
   // editor cards and the slide previews). null = whole slide, no element.
   const [selectedElement, setSelectedElement] = useState<DragKey | null>(null)
+  // alignment guides shown over the canvas during a free-layout drag; cleared on
+  // drop. set whenever the dragged element snaps onto another element's or the
+  // canvas's edge/center.
+  const [dragGuides, setDragGuides] = useState<Guide[]>([])
   // the slide id whose background is in reposition (crop-pan) mode, if any.
   // tied to an id so switching slides leaves the mode automatically.
   const [bgPanId, setBgPanId] = useState<string | null>(null)
@@ -475,6 +481,9 @@ export default function App() {
     origY: number
     moved: boolean
     scale: number
+    // every element's box in canvas coords, for alignment snapping
+    boxes: Record<string, Box>
+    canvasH: number
   } | null>(null)
 
   const onElementPointerDown = useCallback(
@@ -490,16 +499,37 @@ export default function App() {
       // derive the live scale from the rendered width instead of a fixed constant
       const scale = canvas.getBoundingClientRect().width / layout.slideW
 
-      // seed every element: keep any already-pinned positions, measure the rest
-      // from their current on-screen spot (divided back out of the preview scale)
-      const seed: NonNullable<SlideModel['positions']> = { ...(slide.free ? slide.positions : {}) }
+      // measure every element's box (in canvas coords) for both seeding free
+      // positions and computing alignment guides while dragging
+      const boxes: Record<string, Box> = {}
       canvas.querySelectorAll<HTMLElement>('[data-el]').forEach((el) => {
         const k = el.dataset.el as DragKey
-        if (seed[k]) return
         const r = el.getBoundingClientRect()
-        seed[k] = {
+        boxes[k] = {
           x: Math.round((r.left - rootRect.left) / scale),
           y: Math.round((r.top - rootRect.top) / scale),
+          w: Math.round(r.width / scale),
+          h: Math.round(r.height / scale),
+        }
+      })
+
+      // seed every element: keep any already-pinned positions, fall back to the
+      // measured on-screen spot for the rest
+      const seed: NonNullable<SlideModel['positions']> = { ...(slide.free ? slide.positions : {}) }
+      for (const [k, b] of Object.entries(boxes)) {
+        if (!seed[k as DragKey]) seed[k as DragKey] = { x: b.x, y: b.y }
+      }
+
+      // fixed chrome (wordmark, eyebrow label, page number) are snap *targets*
+      // only — measured as reference boxes but never seeded or draggable. keyed
+      // off [data-guide] so they can't collide with a draggable element's key.
+      canvas.querySelectorAll<HTMLElement>('[data-guide]').forEach((el) => {
+        const r = el.getBoundingClientRect()
+        boxes[`guide:${el.dataset.guide}`] = {
+          x: Math.round((r.left - rootRect.left) / scale),
+          y: Math.round((r.top - rootRect.top) / scale),
+          w: Math.round(r.width / scale),
+          h: Math.round(r.height / scale),
         }
       })
 
@@ -514,6 +544,8 @@ export default function App() {
         origY: start.y,
         moved: false,
         scale,
+        boxes,
+        canvasH: slideH,
       }
       setSelectedElement(key)
 
@@ -526,26 +558,33 @@ export default function App() {
         if (!d.moved && Math.hypot(dxPx, dyPx) < 4) return
         d.moved = true
         ev.preventDefault()
+        const proposed = { x: d.origX + dxPx / d.scale, y: d.origY + dyPx / d.scale }
+        const self = d.boxes[d.key]
+        const others = Object.entries(d.boxes)
+          .filter(([k]) => k !== d.key)
+          .map(([, b]) => b)
+        const snapped = self
+          ? computeSnap(proposed, { w: self.w, h: self.h }, others, {
+              w: layout.slideW,
+              h: d.canvasH,
+            })
+          : { x: Math.round(proposed.x), y: Math.round(proposed.y), guides: [] as Guide[] }
+        setDragGuides(snapped.guides)
         updateSlide(d.id, {
           free: true,
-          positions: {
-            ...d.seed,
-            [d.key]: {
-              x: Math.round(d.origX + dxPx / d.scale),
-              y: Math.round(d.origY + dyPx / d.scale),
-            },
-          },
+          positions: { ...d.seed, [d.key]: { x: snapped.x, y: snapped.y } },
         })
       }
       const onUp = () => {
         dragRef.current = null
+        setDragGuides([])
         window.removeEventListener('pointermove', onMove)
         window.removeEventListener('pointerup', onUp)
       }
       window.addEventListener('pointermove', onMove)
       window.addEventListener('pointerup', onUp)
     },
-    [selected, updateSlide],
+    [selected, updateSlide, slideH],
   )
 
   // ── image crop-pan (object-position) ───────────────────────
@@ -1145,6 +1184,7 @@ export default function App() {
             onDeselect={() => { setSelectedElement(null); setBgPanId(null) }}
             onElementPointerDown={onElementPointerDown}
             onResizePointerDown={onElementResizeStart}
+            guides={dragGuides}
             onBandPointerDown={onBandPointerDown}
             onBgPointerDown={onBgPointerDown}
             onRequestBgPan={() => selected && setBgPanId(selected.id)}

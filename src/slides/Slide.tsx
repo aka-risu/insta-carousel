@@ -218,6 +218,7 @@ export function Slide({
           rather than an empty outlined box. */}
       {labelText && (
         <div
+          data-guide="label"
           style={{
             position: 'absolute',
             top: contentTop + layout.frame,
@@ -258,6 +259,7 @@ export function Slide({
       {/* chrome: footer — the antara wordmark, recolored to the palette */}
       {showWordmark && (
         <div
+          data-guide="wordmark"
           style={{
             position: 'absolute',
             bottom: contentBottom + layout.frame + 2,
@@ -269,6 +271,7 @@ export function Slide({
       )}
       {showPageNumber && (
         <div
+          data-guide="pageNumber"
           style={{
             position: 'absolute',
             bottom: contentBottom + layout.frame - 8,

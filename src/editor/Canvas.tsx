@@ -5,6 +5,8 @@ import { BG_SCALE_RANGE } from '../model'
 import type { Theme } from '../tokens'
 import { layout } from '../tokens'
 import { Slide } from '../slides/Slide'
+import { SELECT_COLOR } from '../slides/Selectable'
+import type { Guide } from './snapGuides'
 
 export interface CanvasProps {
   slide: SlideModel | null
@@ -22,6 +24,8 @@ export interface CanvasProps {
   onDeselect: () => void
   onElementPointerDown: (e: ReactPointerEvent, key: DragKey) => void
   onResizePointerDown: (e: ReactPointerEvent, key: DragKey) => void
+  /** alignment guides to draw over the slide while an element is being dragged */
+  guides?: Guide[]
   onBandPointerDown: (e: ReactPointerEvent) => void
   onBgPointerDown: (e: ReactPointerEvent) => void
   onRequestBgPan: () => void
@@ -114,6 +118,45 @@ export function Canvas(props: CanvasProps) {
               onRequestBgPan={props.onRequestBgPan}
               bgPanning={props.bgPanning}
             />
+            {/* alignment guides — drawn in canvas coords inside the scaled
+                wrapper, so the scale transform sizes them for free. inert. */}
+            {props.guides && props.guides.length > 0 && (
+              <svg
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: layout.slideW,
+                  height: slideH,
+                  pointerEvents: 'none',
+                  overflow: 'visible',
+                }}
+              >
+                {props.guides.map((g, i) =>
+                  g.axis === 'v' ? (
+                    <line
+                      key={i}
+                      x1={g.pos}
+                      y1={0}
+                      x2={g.pos}
+                      y2={slideH}
+                      stroke={SELECT_COLOR}
+                      strokeWidth={2}
+                    />
+                  ) : (
+                    <line
+                      key={i}
+                      x1={0}
+                      y1={g.pos}
+                      x2={layout.slideW}
+                      y2={g.pos}
+                      stroke={SELECT_COLOR}
+                      strokeWidth={2}
+                    />
+                  ),
+                )}
+              </svg>
+            )}
           </div>
         </div>
       )}
