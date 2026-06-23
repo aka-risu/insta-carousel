@@ -1,7 +1,7 @@
 // the structured content model behind the constructor
 
 import { parseCarousel } from './parser'
-import type { Theme, ColorOverrides } from './tokens'
+import type { Theme, ColorOverrides, Ratio } from './tokens'
 
 export type SlideType = 'hook' | 'text' | 'fact' | 'quote' | 'diagram' | 'cta'
 
@@ -51,6 +51,8 @@ export interface SlideModel {
   attribution: string
   image: string // asset name
   annotations: string // one per line
+  /** short kicker shown in the chrome label box; empty = the auto micro-label */
+  eyebrow?: string
   /** manual px size per element; missing key = use that element's auto size */
   sizes?: Partial<Record<ElementKey, number>>
   /** per-element text color override; missing key = use the palette color */
@@ -82,6 +84,8 @@ export interface Project {
   slides: SlideModel[]
   /** text-color overrides applied on top of the chosen theme */
   colors?: ColorOverrides
+  /** output aspect ratio; undefined = '4:5' (1080×1350, the original size) */
+  ratio?: Ratio
 }
 
 export function newId(): string {
@@ -375,6 +379,7 @@ export function importDesign(raw: string): Project {
     const t = String(d.type ?? 'text') as SlideType
     const s = newSlide(SLIDE_TYPE_ORDER.includes(t) ? t : 'text')
     for (const k of CONTENT_KEYS) if (typeof d[k] === 'string') s[k] = d[k] as string
+    if (typeof d.eyebrow === 'string') s.eyebrow = d.eyebrow
 
     if (Array.isArray(d.elements)) {
       s.elements = (d.elements as string[]).filter((k): k is ElementKey =>
@@ -453,11 +458,17 @@ export function importDesign(raw: string): Project {
       if (typeof (data.colors as Record<string, unknown>)[k] === 'string')
         colors[k] = (data.colors as Record<string, string>)[k]
 
+  const ratio =
+    data.ratio === '1:1' || data.ratio === '4:5' || data.ratio === '9:16'
+      ? (data.ratio as Ratio)
+      : undefined
+
   return {
     title: typeof data.title === 'string' ? data.title : '',
     themeId: String(data.theme ?? data.themeId ?? 'journal'),
     slides,
     ...(colors.fg || colors.dim || colors.accent ? { colors } : {}),
+    ...(ratio ? { ratio } : {}),
   }
 }
 

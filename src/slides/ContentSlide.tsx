@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { ElementKey, SlideModel, SlideType } from '../model'
 import { sizeFor, DEFAULT_FREE_POS } from '../model'
-import type { Palette } from '../tokens'
+import type { Palette, ThemeStyle } from '../tokens'
 import { layout, fonts } from '../tokens'
 import { RichText } from './RichText'
 import { blockPlate, hlWrap } from './TextPlate'
@@ -31,6 +31,7 @@ export function ContentSlide({
   slide,
   p,
   assets,
+  style = 'editorial',
   selectedElement,
   onSelectElement,
   onElementPointerDown,
@@ -39,10 +40,12 @@ export function ContentSlide({
   slide: SlideModel
   p: Palette
   assets: Record<string, string>
+  style?: ThemeStyle
 } & ElementSelection) {
   const type = slide.type as Exclude<SlideType, 'diagram'>
   const preset = PRESETS[type] ?? PRESETS.text
   const centered = preset.align === 'center'
+  const bold = style === 'bold'
 
   // a per-element color override beats the palette default when set
   const colorFor = (key: ElementKey, fallback: string) => slide.colors?.[key] || fallback
@@ -56,11 +59,12 @@ export function ContentSlide({
           <div
             key="stat"
             style={{
+              fontFamily: bold ? fonts.display : undefined,
               fontSize: sizeFor(slide, 'stat'),
-              fontWeight: 600,
+              fontWeight: bold ? 400 : 600,
               lineHeight: 1,
               letterSpacing: '-0.02em',
-              color: colorFor('stat', p.fg),
+              color: colorFor('stat', bold ? p.accent : p.fg),
             }}
           >
             {hlWrap(slide, 'stat', p, slide.stat)}
@@ -72,17 +76,19 @@ export function ContentSlide({
           <div
             key="text"
             style={{
+              fontFamily: bold ? fonts.display : undefined,
               fontSize: sizeFor(slide, 'text'), // manual override, else auto-fit
-              fontWeight: preset.weight,
-              fontStyle: preset.italic ? 'italic' : 'normal',
-              lineHeight: preset.lineHeight,
+              fontWeight: bold ? 400 : preset.weight,
+              fontStyle: bold ? 'normal' : preset.italic ? 'italic' : 'normal',
+              lineHeight: bold ? 1.05 : preset.lineHeight,
+              textTransform: bold ? 'uppercase' : undefined,
               whiteSpace: 'pre-wrap',
               maxWidth: 920,
-              letterSpacing: type === 'hook' ? '-0.005em' : undefined,
+              letterSpacing: bold ? '-0.01em' : type === 'hook' ? '-0.005em' : undefined,
               color: colorFor('text', p.fg),
             }}
           >
-            {hlWrap(slide, 'text', p, <RichText text={slide.text} p={p} />)}
+            {hlWrap(slide, 'text', p, <RichText text={slide.text} p={p} style={style} />)}
           </div>
         )
       case 'sub':
@@ -93,11 +99,12 @@ export function ContentSlide({
               <div style={{ width: 96, borderTop: `2px solid ${p.accent}`, marginBottom: 72 }} />
               <div
                 style={{
-                  fontFamily: fonts.mono,
-                  fontWeight: 500,
+                  fontFamily: bold ? fonts.sans : fonts.mono,
+                  fontWeight: bold ? 600 : 500,
                   fontSize: sizeFor(slide, 'sub'),
                   lineHeight: 1.85,
-                  letterSpacing: '0.16em',
+                  letterSpacing: bold ? '0.08em' : '0.16em',
+                  textTransform: bold ? 'uppercase' : undefined,
                   whiteSpace: 'pre-wrap',
                   color: colorFor('sub', p.accent),
                 }}
@@ -111,10 +118,12 @@ export function ContentSlide({
           <div
             key="sub"
             style={{
-              fontFamily: fonts.mono,
-              fontWeight: 500,
+              fontFamily: bold ? fonts.sans : fonts.mono,
+              fontWeight: bold ? 600 : 500,
               fontSize: sizeFor(slide, 'sub'),
-              letterSpacing: '0.2em',
+              letterSpacing: bold ? '0.01em' : '0.2em',
+              lineHeight: bold ? 1.32 : undefined,
+              textTransform: bold ? 'uppercase' : undefined,
               whiteSpace: 'pre-wrap',
               color: colorFor('sub', p.dim),
             }}
@@ -123,7 +132,20 @@ export function ContentSlide({
               slide,
               'sub',
               p,
-              type === 'hook' ? <>{slide.sub || 'keep reading'}&nbsp;&nbsp;→</> : slide.sub,
+              type === 'hook' ? (
+                <>
+                  {bold ? (
+                    <RichText text={slide.sub || 'keep reading'} p={p} style={style} />
+                  ) : (
+                    slide.sub || 'keep reading'
+                  )}
+                  &nbsp;&nbsp;→
+                </>
+              ) : bold ? (
+                <RichText text={slide.sub} p={p} style={style} />
+              ) : (
+                slide.sub
+              ),
             )}
           </div>
         )
@@ -173,19 +195,22 @@ export function ContentSlide({
           <div
             key="def"
             style={{
-              paddingLeft: 32,
-              borderLeft: `3px solid ${p.accent}`,
-              fontStyle: 'italic',
+              paddingLeft: bold ? 0 : 32,
+              borderLeft: bold ? undefined : `3px solid ${p.accent}`,
+              fontFamily: bold ? fonts.sans : undefined,
+              fontStyle: bold ? 'normal' : 'italic',
               fontWeight: 500,
               fontSize: sizeFor(slide, 'def'),
-              lineHeight: 1.45,
+              lineHeight: bold ? 1.4 : 1.45,
+              textTransform: bold ? 'uppercase' : undefined,
+              letterSpacing: bold ? '0.01em' : undefined,
               color: colorFor('def', p.dim),
               maxWidth: 760,
               whiteSpace: 'pre-wrap',
               textAlign: 'left',
             }}
           >
-            {hlWrap(slide, 'def', p, slide.def)}
+            {hlWrap(slide, 'def', p, bold ? <RichText text={slide.def} p={p} style={style} /> : slide.def)}
           </div>
         )
       case 'attribution':
@@ -194,10 +219,11 @@ export function ContentSlide({
           <div
             key="attribution"
             style={{
-              fontFamily: fonts.mono,
-              fontWeight: 500,
+              fontFamily: bold ? fonts.sans : fonts.mono,
+              fontWeight: bold ? 600 : 500,
               fontSize: sizeFor(slide, 'attribution'),
-              letterSpacing: '0.18em',
+              letterSpacing: bold ? '0.04em' : '0.18em',
+              textTransform: bold ? 'uppercase' : undefined,
               color: colorFor('attribution', p.dim),
             }}
           >

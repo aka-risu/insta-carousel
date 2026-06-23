@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/archivo": "^5.2.8",
+    "@fontsource/archivo-black": "^5.2.8",
     "@fontsource/eb-garamond": "^5.2.7",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "file-saver": "^2.0.5",

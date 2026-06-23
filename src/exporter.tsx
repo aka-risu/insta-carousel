@@ -5,7 +5,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import type { Project } from './model'
 import { microLabels, projectToText } from './model'
-import { layout, themeById } from './tokens'
+import { layout, themeById, slideHeightFor } from './tokens'
 import { Slide } from './slides/Slide'
 
 // renders every slide offscreen at natural 1080×1350 (no transform — scaled
@@ -20,6 +20,7 @@ export async function exportCarousel(
 
   const theme = themeById(project.themeId)
   const labels = microLabels(project, theme)
+  const slideH = slideHeightFor(project.ratio)
 
   // offscreen but rendered: off the left edge, natural size, no transforms
   const container = document.createElement('div')
@@ -41,7 +42,7 @@ export async function exportCarousel(
             <div
               key={slide.id}
               data-slide={i}
-              style={{ width: layout.slideW, height: layout.slideH }}
+              style={{ width: layout.slideW, height: slideH }}
             >
               <Slide
                 slide={slide}
@@ -50,6 +51,7 @@ export async function exportCarousel(
                 total={total}
                 theme={theme}
                 assets={assets}
+                slideH={slideH}
               />
             </div>
           ))}
@@ -72,7 +74,7 @@ export async function exportCarousel(
     for (let i = 0; i < nodes.length; i++) {
       const dataUrl = await toPng(nodes[i], {
         width: layout.slideW,
-        height: layout.slideH,
+        height: slideH,
         pixelRatio: 1,
         fontEmbedCSS: fontCss,
       })

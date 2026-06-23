@@ -22,9 +22,24 @@ export const layout = {
   footerSize: 42,
 } as const
 
+// output aspect ratio — width is always 1080, only the height changes, so
+// horizontal layout, padding and free-element x positions are ratio-agnostic.
+export type Ratio = '1:1' | '4:5' | '9:16'
+export const RATIOS: { id: Ratio; label: string; h: number }[] = [
+  { id: '1:1', label: 'square · 1:1', h: 1080 },
+  { id: '4:5', label: 'portrait · 4:5', h: 1350 },
+  { id: '9:16', label: 'stories · 9:16', h: 1920 },
+]
+export const DEFAULT_RATIO: Ratio = '4:5'
+export function slideHeightFor(ratio?: Ratio): number {
+  return RATIOS.find((r) => r.id === ratio)?.h ?? layout.slideH
+}
+
 export const fonts = {
   serif: `'EB Garamond', 'Iowan Old Style', Georgia, serif`,
   mono: `'IBM Plex Mono', 'SF Mono', Menlo, monospace`,
+  sans: `'Archivo', 'Helvetica Neue', Arial, sans-serif`,
+  display: `'Archivo Black', 'Archivo', 'Helvetica Neue', Arial, sans-serif`,
 } as const
 
 // kept for backwards compatibility with the app chrome css variables
@@ -103,9 +118,16 @@ export interface ChartBg {
   url: string
 }
 
+// the typographic system a theme renders in. 'editorial' is the original
+// serif/mono field-journal lineage; 'bold' is the high-impact uppercase sans
+// look (black canvas, mint accent, boxed eyebrow). undefined ⇒ 'editorial'.
+export type ThemeStyle = 'editorial' | 'bold'
+
 export interface Theme {
   id: string
   name: string
+  /** typographic system; undefined ⇒ 'editorial' (every original theme) */
+  style?: ThemeStyle
   base: Palette
   inverted: Palette // the cta slide uses this
   /** full-bleed background plates; slides cycle through them unless overridden */
@@ -335,10 +357,49 @@ export const THEMES: Theme[] = [
       cta: 'the end',
     },
   },
+  {
+    id: 'manifesto',
+    name: 'manifesto',
+    // high-impact "viral infographic" look: pure-black canvas, heavy uppercase
+    // sans type, mint accent, a thin outlined eyebrow label and clean (not
+    // hand-drawn) emphasis marks. the bold style owns the typography; the
+    // palette carries the colors. eyebrow wording comes from the per-slide
+    // `eyebrow` field (these auto labels are the fallback).
+    style: 'bold',
+    base: {
+      bg: '#0A0A0A',
+      fg: '#FFFFFF',
+      dim: '#8A8A8A',
+      accent: '#A8E6B0',
+      texture: 'none',
+      mat: '#161616',
+    },
+    // black stays black on the cta — nothing to invert against
+    inverted: {
+      bg: '#0A0A0A',
+      fg: '#FFFFFF',
+      dim: '#8A8A8A',
+      accent: '#A8E6B0',
+      texture: 'none',
+      mat: '#161616',
+    },
+    labels: {
+      hook: () => 'the hook',
+      section: () => 'the point',
+      diagram: () => 'the figure',
+      quote: 'the quote',
+      cta: 'the takeaway',
+    },
+  },
 ]
 
 export function themeById(id: string): Theme {
   return THEMES.find((t) => t.id === id) ?? THEMES[0]
+}
+
+// the typographic system a theme renders in; the renderers branch on this.
+export function themeStyle(t: Theme): ThemeStyle {
+  return t.style ?? 'editorial'
 }
 
 // ── per-project text-color overrides ─────────────────────────

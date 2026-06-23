@@ -1,10 +1,18 @@
 import type { ReactNode } from 'react'
-import type { Palette } from '../tokens'
+import type { Palette, ThemeStyle } from '../tokens'
 
-// inline emphasis marks for body text, in the field-journal hand:
+// inline emphasis marks for body text. the same markup renders two ways:
+//
+// editorial (the field-journal hand):
 //   *word*   → pen circle (hand-drawn loop around the word)
 //   _word_   → hand-drawn underline
 //   ==word== → highlighter sweep
+//
+// bold (the manifesto look — crisp, not hand-drawn):
+//   *word*   → bold white run
+//   _word_   → straight mint underline
+//   ==word== → solid mint highlight
+//
 // rendered as svg/css overlays — NO svg <filter>, which html-to-image drops.
 
 const RE = /(==[^=\n]+==|\*[^*\n]+\*|_[^_\n]+_)/g
@@ -18,9 +26,64 @@ const CIRCLE_PATH =
 
 const UNDERLINE_PATH = 'M1,6 C22,2 44,9 63,4 C79,1 92,7 99,3'
 
-export function RichText({ text, p }: { text: string; p: Palette }): ReactNode {
+export function RichText({
+  text,
+  p,
+  style = 'editorial',
+}: {
+  text: string
+  p: Palette
+  style?: ThemeStyle
+}): ReactNode {
   if (!text) return null
   const parts = text.split(RE)
+
+  // bold style: crisp marks, no hand-drawn svg overlays
+  if (style === 'bold') {
+    return parts.map((part, i) => {
+      if (part.startsWith('==') && part.endsWith('==')) {
+        return (
+          <span
+            key={i}
+            style={{
+              background: p.accent,
+              color: p.bg,
+              fontWeight: 700,
+              padding: '0.02em 0.16em',
+              boxDecorationBreak: 'clone',
+              WebkitBoxDecorationBreak: 'clone',
+            }}
+          >
+            {part.slice(2, -2)}
+          </span>
+        )
+      }
+      if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+        return (
+          <span key={i} style={{ fontWeight: 700, color: p.fg }}>
+            {part.slice(1, -1)}
+          </span>
+        )
+      }
+      if (part.startsWith('_') && part.endsWith('_') && part.length > 2) {
+        return (
+          <span
+            key={i}
+            style={{
+              fontWeight: 700,
+              color: p.fg,
+              borderBottom: `0.09em solid ${p.accent}`,
+              paddingBottom: '0.04em',
+            }}
+          >
+            {part.slice(1, -1)}
+          </span>
+        )
+      }
+      return part
+    })
+  }
+
   return parts.map((part, i) => {
     if (part.startsWith('==') && part.endsWith('==')) {
       return (

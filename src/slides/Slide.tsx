@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import type { SlideModel } from '../model'
 import { DEFAULT_IMAGE_FRAC, IMAGE_FRAC_RANGE } from '../model'
 import type { Theme, Palette } from '../tokens'
-import { layout, fonts, resolveColor } from '../tokens'
+import { layout, fonts, resolveColor, themeStyle } from '../tokens'
 import { AntaraWordmark } from './AntaraWordmark'
 import { ContentSlide } from './ContentSlide'
 import { DiagramSlide } from './DiagramSlide'
@@ -15,6 +15,8 @@ export interface SlideProps extends ElementSelection {
   total: number
   theme: Theme
   assets: Record<string, string> // name -> object url
+  /** rendered slide height for the carousel's ratio; defaults to 4:5 (1350) */
+  slideH?: number
 }
 
 // the one slide component — used verbatim for both preview and export
@@ -25,6 +27,7 @@ export function Slide({
   total,
   theme,
   assets,
+  slideH = layout.slideH,
   selectedElement,
   onSelectElement,
   onElementPointerDown,
@@ -32,6 +35,10 @@ export function Slide({
 }: SlideProps) {
   // cta always renders in the theme's inverted palette
   const p: Palette = slide.type === 'cta' ? theme.inverted : theme.base
+  const style = themeStyle(theme)
+  const bold = style === 'bold'
+  // a per-slide eyebrow overrides the auto micro-label, in any theme
+  const labelText = slide.eyebrow?.trim() || microLabel
 
   // background image: a per-slide image (any theme) wins; otherwise fall back to
   // an image-backed theme's plate (manual override, else cycle by position)
@@ -63,14 +70,14 @@ export function Slide({
     IMAGE_FRAC_RANGE.max,
     Math.max(IMAGE_FRAC_RANGE.min, slide.imageFrac ?? DEFAULT_IMAGE_FRAC),
   )
-  const bandH = hasBand ? Math.round(layout.slideH * bandFrac) : 0
+  const bandH = hasBand ? Math.round(slideH * bandFrac) : 0
   const bandUrl = hasBand && slide.image ? assets[slide.image] : undefined
   const contentTop = hasBand && bandSide === 'top' ? bandH : 0
   const contentBottom = hasBand && bandSide === 'bottom' ? bandH : 0
 
   const rootStyle: CSSProperties = {
     width: layout.slideW,
-    height: layout.slideH,
+    height: slideH,
     position: 'relative',
     overflow: 'hidden',
     boxSizing: 'border-box',
@@ -78,7 +85,7 @@ export function Slide({
     backgroundImage: bgUrl ? undefined : p.texture, // image carries its own texture
     backgroundRepeat: 'repeat',
     color: p.fg,
-    fontFamily: fonts.serif,
+    fontFamily: bold ? fonts.sans : fonts.serif,
   }
 
   return (
@@ -147,8 +154,9 @@ export function Slide({
           </div>
         ))}
 
-      {/* inner hairline frame — skipped on chart plates and full-bleed bands */}
-      {!bgUrl && !hasBand && (
+      {/* inner hairline frame — skipped on chart plates, full-bleed bands, and
+          the bold style (which wants clean edges) */}
+      {!bgUrl && !hasBand && !bold && (
         <div
           style={{
             position: 'absolute',
@@ -160,20 +168,29 @@ export function Slide({
         />
       )}
 
-      {/* chrome: micro-label — sits inside the content region, clear of the band */}
+      {/* chrome: eyebrow / micro-label — sits inside the content region, clear
+          of the band. bold style frames it in a thin outlined box. */}
       <div
         style={{
           position: 'absolute',
           top: contentTop + layout.frame,
           left: layout.frame,
-          fontFamily: fonts.mono,
-          fontWeight: 500,
-          fontSize: layout.microSize,
-          letterSpacing: layout.microTracking,
+          fontFamily: bold ? fonts.sans : fonts.mono,
+          fontWeight: bold ? 600 : 500,
+          fontSize: bold ? 30 : layout.microSize,
+          letterSpacing: bold ? '0.18em' : layout.microTracking,
+          textTransform: bold ? 'uppercase' : undefined,
           color: p.dim,
+          ...(bold
+            ? {
+                border: `1.5px solid ${p.dim}`,
+                borderRadius: 4,
+                padding: '10px 18px',
+              }
+            : null),
         }}
       >
-        {microLabel}
+        {labelText}
       </div>
 
       {/* archetype content — confined to the region the band leaves free */}
@@ -181,6 +198,7 @@ export function Slide({
         {renderType(
           slide,
           p,
+          style,
           assets,
           selectedElement,
           onSelectElement,
@@ -204,9 +222,11 @@ export function Slide({
           position: 'absolute',
           bottom: contentBottom + layout.frame - 8,
           right: layout.frame,
-          fontStyle: 'italic',
-          fontWeight: 500,
+          fontFamily: bold ? fonts.sans : undefined,
+          fontStyle: bold ? 'normal' : 'italic',
+          fontWeight: bold ? 600 : 500,
           fontSize: layout.footerSize,
+          letterSpacing: bold ? '0.04em' : undefined,
           color: p.dim,
         }}
       >
@@ -219,6 +239,7 @@ export function Slide({
 function renderType(
   slide: SlideModel,
   p: Palette,
+  style: ReturnType<typeof themeStyle>,
   assets: Record<string, string>,
   selectedElement: SlideProps['selectedElement'],
   onSelectElement: SlideProps['onSelectElement'],
@@ -233,6 +254,7 @@ function renderType(
     <ContentSlide
       slide={slide}
       p={p}
+      style={style}
       assets={assets}
       {...sel}
       onElementPointerDown={onElementPointerDown}

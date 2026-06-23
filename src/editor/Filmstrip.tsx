@@ -18,6 +18,8 @@ export interface FilmstripProps {
   onDuplicate: (id: string) => void
   onRemove: (id: string) => void
   onAdd: (type: SlideType) => void
+  /** rendered slide height for the carousel's ratio */
+  slideH: number
 }
 
 export function Filmstrip({
@@ -31,8 +33,9 @@ export function Filmstrip({
   onDuplicate,
   onRemove,
   onAdd,
+  slideH,
 }: FilmstripProps) {
-  const frameH = Math.round(layout.slideH * SCALE)
+  const frameH = Math.round(slideH * SCALE)
 
   return (
     <>
@@ -51,7 +54,7 @@ export function Filmstrip({
               <div
                 style={{
                   width: layout.slideW,
-                  height: layout.slideH,
+                  height: slideH,
                   transform: `scale(${SCALE})`,
                   transformOrigin: 'top left',
                   pointerEvents: 'none',
@@ -64,6 +67,7 @@ export function Filmstrip({
                   total={slides.length}
                   theme={theme}
                   assets={assets}
+                  slideH={slideH}
                   selectedElement={null}
                 />
               </div>

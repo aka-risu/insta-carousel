@@ -57,6 +57,19 @@ export function SlidePanel({
         </select>
       </div>
 
+      <div className="field">
+        <span className="field-label">eyebrow</span>
+        <input
+          type="text"
+          value={slide.eyebrow ?? ''}
+          placeholder="auto label — e.g. the truth"
+          onChange={(e) => updateSlide(slide.id, { eyebrow: e.target.value || undefined })}
+        />
+        <span className="field-hint">
+          the small label in the slide's corner. empty = the theme's auto label
+        </span>
+      </div>
+
       {theme.backgrounds && (
         <div className="field">
           <span className="field-label">background plate</span>

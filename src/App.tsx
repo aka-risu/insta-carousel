@@ -28,8 +28,10 @@ import {
   sampleTheme,
   DEFAULT_CUSTOM,
   applyColorOverrides,
+  RATIOS,
+  slideHeightFor,
 } from './tokens'
-import type { CustomThemeData, ColorOverrides } from './tokens'
+import type { CustomThemeData, ColorOverrides, Ratio } from './tokens'
 import { exportCarousel } from './exporter'
 import { Inspector } from './editor/Inspector'
 import { Filmstrip } from './editor/Filmstrip'
@@ -164,6 +166,18 @@ export default function App() {
   const [custom, setCustom] = useState<CustomThemeData>(loadCustom)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
+  // mobile: the inspector rides in a bottom sheet instead of a side pane
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches,
+  )
+  const [sheetOpen, setSheetOpen] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 820px)')
+    const onChange = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
   useEffect(() => {
     localStorage.setItem(PROJECT_KEY, JSON.stringify(project))
   }, [project])
@@ -203,6 +217,7 @@ export default function App() {
   const labels = useMemo(() => microLabels(project, theme), [project, theme])
   const refs = useMemo(() => referencedAssets(project), [project])
   const missing = refs.filter((name) => !assets[name])
+  const slideH = slideHeightFor(project.ratio)
 
   const selected = project.slides.find((s) => s.id === selectedId) ?? null
 
@@ -224,6 +239,27 @@ export default function App() {
         ...p,
         slides: p.slides.map((s) => (s.id === id ? { ...s, ...changes } : s)),
       })),
+    [patch],
+  )
+
+  // switch output ratio. width is unchanged; only height shifts, so we just
+  // keep any freely-placed element from falling off the bottom of a shorter slide.
+  const setRatio = useCallback(
+    (ratio: Ratio) =>
+      patch((p) => {
+        const h = slideHeightFor(ratio)
+        const slides = p.slides.map((s) => {
+          if (!s.free || !s.positions) return s
+          const positions = Object.fromEntries(
+            Object.entries(s.positions).map(([k, pos]) => [
+              k,
+              { x: pos.x, y: Math.min(pos.y, h - 80) },
+            ]),
+          ) as NonNullable<SlideModel['positions']>
+          return { ...s, positions }
+        })
+        return { ...p, ratio, slides }
+      }),
     [patch],
   )
 
@@ -739,6 +775,18 @@ export default function App() {
           ))}
           <option value="custom">theme · custom</option>
         </select>
+        <select
+          className="theme-select"
+          value={project.ratio ?? '4:5'}
+          onChange={(e) => setRatio(e.target.value as Ratio)}
+          title="output aspect ratio"
+        >
+          {RATIOS.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.label}
+            </option>
+          ))}
+        </select>
         <button className="ghost-btn" onClick={() => setShowDesigns(true)}>
           designs{designs.length ? ` (${designs.length})` : ''}
         </button>
@@ -774,6 +822,7 @@ export default function App() {
             onDuplicate={duplicateSlide}
             onRemove={removeSlide}
             onAdd={addSlide}
+            slideH={slideH}
           />
         </section>
 
@@ -786,16 +835,29 @@ export default function App() {
             microLabel={selected ? labels[project.slides.findIndex((s) => s.id === selected.id)] : ''}
             theme={theme}
             assets={assets}
+            slideH={slideH}
             selectedElement={activeElement}
-            onSelectElement={(key) => setSelectedElement(key)}
+            onSelectElement={(key) => { setSelectedElement(key); if (isMobile) setSheetOpen(true) }}
             onDeselect={() => setSelectedElement(null)}
             onElementPointerDown={onElementPointerDown}
             onResizePointerDown={onElementResizeStart}
           />
         </section>
 
+        {/* mobile-only: backdrop + handle for the inspector bottom sheet */}
+        {isMobile && sheetOpen && (
+          <div className="sheet-backdrop" onClick={() => setSheetOpen(false)} />
+        )}
+
         {/* ── editor ── */}
-        <section className="editor-pane">
+        <section className={`editor-pane${isMobile ? ' editor-pane--sheet' : ''}${isMobile && sheetOpen ? ' open' : ''}`}>
+          {isMobile && (
+            <div className="sheet-handle">
+              <button className="ghost-btn sheet-close" onClick={() => setSheetOpen(false)}>
+                done
+              </button>
+            </div>
+          )}
           <Inspector
             selected={selected}
             activeElement={activeElement}
@@ -834,6 +896,13 @@ export default function App() {
           />
         </section>
       </main>
+
+      {/* mobile-only: open the inspector sheet */}
+      {isMobile && !sheetOpen && (
+        <button className="sheet-toggle" onClick={() => setSheetOpen(true)} aria-label="edit">
+          edit ✎
+        </button>
+      )}
 
       {/* ── import overlay ── */}
       {/* ── save-before-new prompt ── */}
