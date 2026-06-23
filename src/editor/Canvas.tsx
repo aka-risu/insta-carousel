@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import type { SlideModel, ElementKey } from '../model'
+import type { SlideModel, DragKey } from '../model'
 import type { Theme } from '../tokens'
 import { layout } from '../tokens'
 import { Slide } from '../slides/Slide'
@@ -16,11 +16,11 @@ export interface CanvasProps {
   slideH: number
   showPageNumber: boolean
   showWordmark: boolean
-  selectedElement: ElementKey | null
-  onSelectElement: (key: ElementKey) => void
+  selectedElement: DragKey | null
+  onSelectElement: (key: DragKey) => void
   onDeselect: () => void
-  onElementPointerDown: (e: ReactPointerEvent, key: ElementKey) => void
-  onResizePointerDown: (e: ReactPointerEvent, key: ElementKey) => void
+  onElementPointerDown: (e: ReactPointerEvent, key: DragKey) => void
+  onResizePointerDown: (e: ReactPointerEvent, key: DragKey) => void
 }
 
 // largest the slide is ever drawn on screen — keeps a 1:1 slide from blowing

@@ -21,6 +21,17 @@ export type ElementKey =
   | 'def'
   | 'attribution'
 
+// a position/selection key: either a whole element, or a single indexed
+// annotation line ("annotations#2") so diagram callouts can be placed one by
+// one. everything else (sizes/colors/the element list) keys off ElementKey.
+export type DragKey = ElementKey | `annotations#${number}`
+
+// the styling element a drag key belongs to ("annotations#2" -> "annotations")
+export function baseKey(k: DragKey): ElementKey {
+  const i = k.indexOf('#')
+  return (i === -1 ? k : k.slice(0, i)) as ElementKey
+}
+
 // a tint/scrim drawn over a slide's background image for legibility
 export type OverlayMode = 'wash' | 'top' | 'bottom'
 export interface SlideOverlay {
@@ -73,8 +84,10 @@ export interface SlideModel {
   textBg?: Partial<Record<ElementKey, TextBacking>>
   /** free-layout mode: elements are placed absolutely via `positions` instead of auto-stacked */
   free?: boolean
-  /** per-element top-left in canvas coordinates (the 1080×1350 space); used only when `free` */
-  positions?: Partial<Record<ElementKey, { x: number; y: number }>>
+  /** per-element top-left in canvas coordinates (the 1080×1350 space); used only
+   *  when `free`. keyed by DragKey so diagram annotation lines ("annotations#N")
+   *  can each carry their own position. */
+  positions?: Partial<Record<DragKey, { x: number; y: number }>>
 }
 
 /** where a freshly-freed (or newly added) element starts before it's dragged */
@@ -487,12 +500,16 @@ export function slideFromJSON(d: Record<string, unknown>): SlideModel {
 
   if (d.free === true) s.free = true
   if (d.positions && typeof d.positions === 'object') {
-    const out: Partial<Record<ElementKey, { x: number; y: number }>> = {}
+    const out: NonNullable<SlideModel['positions']> = {}
     for (const [k, v] of Object.entries(d.positions as Record<string, unknown>)) {
-      if (!ELEMENT_ORDER.includes(k as ElementKey)) continue
+      // accept element keys, plus indexed annotation lines ("annotations#3")
+      const hash = k.indexOf('#')
+      const base = hash === -1 ? k : k.slice(0, hash)
+      const idxOk = hash === -1 || /^annotations#\d+$/.test(k)
+      if (!ELEMENT_ORDER.includes(base as ElementKey) || !idxOk) continue
       const pos = v as Record<string, unknown>
       if (pos && typeof pos.x === 'number' && typeof pos.y === 'number')
-        out[k as ElementKey] = { x: pos.x, y: pos.y }
+        out[k as DragKey] = { x: pos.x, y: pos.y }
     }
     if (Object.keys(out).length) s.positions = out
   }

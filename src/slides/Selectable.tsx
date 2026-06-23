@@ -1,18 +1,18 @@
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
-import type { ElementKey } from '../model'
+import type { DragKey } from '../model'
 
 // a vivid, theme-independent selection colour so the outline reads on any palette
 export const SELECT_COLOR = '#2f7bff'
 
 export interface ElementSelection {
   /** the element currently highlighted on this slide (null = none) */
-  selectedElement?: ElementKey | null
+  selectedElement?: DragKey | null
   /** click handler wired only in the editor preview; absent during export */
-  onSelectElement?: (key: ElementKey) => void
+  onSelectElement?: (key: DragKey) => void
   /** begins a free-layout drag for an element; editor preview only, absent on export */
-  onElementPointerDown?: (e: ReactPointerEvent, key: ElementKey) => void
+  onElementPointerDown?: (e: ReactPointerEvent, key: DragKey) => void
   /** begins a resize (font-size) drag from the corner handle; editor preview only */
-  onResizePointerDown?: (e: ReactPointerEvent, key: ElementKey) => void
+  onResizePointerDown?: (e: ReactPointerEvent, key: DragKey) => void
 }
 
 // wraps one slide element so it can be clicked to select (and dragged when the
@@ -31,7 +31,7 @@ export function Selectable({
   onResizePointerDown,
   children,
 }: ElementSelection & {
-  el: ElementKey
+  el: DragKey
   align?: 'left' | 'center'
   /** match a full-bleed band element so its wrapper doesn't clip the bleed */
   stretch?: boolean

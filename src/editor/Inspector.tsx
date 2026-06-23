@@ -196,48 +196,53 @@ export function Inspector(props: InspectorProps) {
               </div>
             )}
 
-            {selected.type !== 'diagram' && (
-              <div className="field">
-                <span className="field-label">layout</span>
-                <div className="size-row">
-                  <button
-                    className={`size-auto ${!selected.free ? 'on' : ''}`}
-                    onClick={() => resetLayout(selected.id)}
-                    title="auto-stack the elements (clears free positions)"
-                  >
-                    auto
-                  </button>
-                  <button
-                    className="mark-btn"
-                    onClick={copyLayout}
-                    disabled={!selected.free}
-                    title="copy this slide's element positions"
-                  >
-                    copy
-                  </button>
-                  <button
-                    className="mark-btn"
-                    onClick={() => pasteLayout(selected.id)}
-                    disabled={!layoutClip}
-                    title="paste the copied positions onto this slide"
-                  >
-                    paste
-                  </button>
-                  <button
-                    className="mark-btn"
-                    onClick={applyLayoutToAll}
-                    disabled={!selected.free}
-                    title="apply this slide's layout to every other slide"
-                  >
-                    apply to all
-                  </button>
-                </div>
-                <span className="field-hint">
-                  drag any element on the slide preview to place it freely. "auto" returns to
-                  automatic stacking.
-                </span>
+            <div className="field">
+              <span className="field-label">layout</span>
+              <div className="size-row">
+                <button
+                  className={`size-auto ${!selected.free ? 'on' : ''}`}
+                  onClick={() => resetLayout(selected.id)}
+                  title="auto-stack the elements (clears free positions)"
+                >
+                  auto
+                </button>
+                {/* copy/paste/apply move positions between like-keyed slides;
+                    diagrams use their own annotation-line keys, so they only
+                    get the auto reset */}
+                {selected.type !== 'diagram' && (
+                  <>
+                    <button
+                      className="mark-btn"
+                      onClick={copyLayout}
+                      disabled={!selected.free}
+                      title="copy this slide's element positions"
+                    >
+                      copy
+                    </button>
+                    <button
+                      className="mark-btn"
+                      onClick={() => pasteLayout(selected.id)}
+                      disabled={!layoutClip}
+                      title="paste the copied positions onto this slide"
+                    >
+                      paste
+                    </button>
+                    <button
+                      className="mark-btn"
+                      onClick={applyLayoutToAll}
+                      disabled={!selected.free}
+                      title="apply this slide's layout to every other slide"
+                    >
+                      apply to all
+                    </button>
+                  </>
+                )}
               </div>
-            )}
+              <span className="field-hint">
+                drag any element on the slide preview to place it freely. "auto" returns to
+                automatic stacking.
+              </span>
+            </div>
 
             {AVAILABLE_ELEMENTS[selected.type].filter((k) => !selected.elements.includes(k))
               .length > 0 && (

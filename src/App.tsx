@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import type {
+  DragKey,
   ElementKey,
   Project,
   SlideModel,
@@ -9,6 +10,7 @@ import type {
   TextBacking,
 } from './model'
 import {
+  baseKey,
   DEFAULT_FREE_POS,
   SIZE_RANGE,
   ensureElements,
@@ -205,7 +207,7 @@ export default function App() {
   const [layoutClip, setLayoutClip] = useState<SlideModel['positions'] | null>(null)
   // which element on the selected slide is highlighted (synced between the
   // editor cards and the slide previews). null = whole slide, no element.
-  const [selectedElement, setSelectedElement] = useState<ElementKey | null>(null)
+  const [selectedElement, setSelectedElement] = useState<DragKey | null>(null)
   const [userImages, setUserImages] = useState<Record<string, string>>(loadImages)
   const [storageFull, setStorageFull] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -285,11 +287,15 @@ export default function App() {
   const selected = project.slides.find((s) => s.id === selectedId) ?? null
 
   // the highlighted element only counts while it still lives on the selected
-  // slide — so switching slides clears a stale highlight automatically
-  const activeElement =
-    selected && selectedElement && selected.elements.includes(selectedElement)
+  // slide — so switching slides clears a stale highlight automatically. an
+  // annotation line ("annotations#2") validates against its base element.
+  const activeDragKey: DragKey | null =
+    selected && selectedElement && selected.elements.includes(baseKey(selectedElement))
       ? selectedElement
       : null
+  // the canvas highlights the exact drag key (one annotation line); the
+  // inspector edits the underlying element, so it sees the base key
+  const activeElement: ElementKey | null = activeDragKey ? baseKey(activeDragKey) : null
 
   // ── project mutations ──────────────────────────────────────
   const patch = useCallback((fn: (p: Project) => Project) => {
@@ -314,10 +320,9 @@ export default function App() {
         const slides = p.slides.map((s) => {
           if (!s.free || !s.positions) return s
           const positions = Object.fromEntries(
-            Object.entries(s.positions).map(([k, pos]) => [
-              k,
-              { x: pos.x, y: Math.min(pos.y, h - 80) },
-            ]),
+            Object.entries(s.positions)
+              .filter(([, pos]) => pos)
+              .map(([k, pos]) => [k, { x: pos!.x, y: Math.min(pos!.y, h - 80) }]),
           ) as NonNullable<SlideModel['positions']>
           return { ...s, positions }
         })
@@ -459,7 +464,7 @@ export default function App() {
   // they render identically in the scaled preview and the full-size export.
   const dragRef = useRef<{
     id: string
-    key: ElementKey
+    key: DragKey
     startX: number
     startY: number
     seed: NonNullable<SlideModel['positions']>
@@ -470,9 +475,9 @@ export default function App() {
   } | null>(null)
 
   const onElementPointerDown = useCallback(
-    (e: ReactPointerEvent, key: ElementKey) => {
+    (e: ReactPointerEvent, key: DragKey) => {
       const slide = selected
-      if (!slide || slide.type === 'diagram') return
+      if (!slide) return
       const wrapper = e.currentTarget as HTMLElement
       const canvas = wrapper.closest('[data-slide-canvas]') as HTMLElement | null
       const root = wrapper.closest('[data-content-root]') as HTMLElement | null
@@ -486,7 +491,7 @@ export default function App() {
       // from their current on-screen spot (divided back out of the preview scale)
       const seed: NonNullable<SlideModel['positions']> = { ...(slide.free ? slide.positions : {}) }
       canvas.querySelectorAll<HTMLElement>('[data-el]').forEach((el) => {
-        const k = el.dataset.el as ElementKey
+        const k = el.dataset.el as DragKey
         if (seed[k]) return
         const r = el.getBoundingClientRect()
         seed[k] = {
@@ -544,22 +549,24 @@ export default function App() {
   // pointer's distance from the (anchored) top-left corner drives the new size,
   // clamped to the element's slider range — so resize and the slider stay in sync.
   const onElementResizeStart = useCallback(
-    (e: ReactPointerEvent, key: ElementKey) => {
+    (e: ReactPointerEvent, key: DragKey) => {
       const slide = selected
-      if (!slide || key === 'image') return
+      // font-size lives on the base element (annotation lines share one size)
+      const base = baseKey(key)
+      if (!slide || base === 'image') return
       const wrapper = (e.currentTarget as HTMLElement).closest('[data-el]') as HTMLElement | null
       if (!wrapper) return
       const rect = wrapper.getBoundingClientRect()
-      const origSize = sizeFor(slide, key)
+      const origSize = sizeFor(slide, base)
       const startDist = Math.hypot(e.clientX - rect.left, e.clientY - rect.top) || 1
-      const range = SIZE_RANGE[key]
+      const range = SIZE_RANGE[base]
       setSelectedElement(key)
 
       const onMove = (ev: PointerEvent) => {
         ev.preventDefault()
         const dist = Math.hypot(ev.clientX - rect.left, ev.clientY - rect.top)
         const next = Math.round(origSize * (dist / startDist))
-        setSize(slide.id, key, Math.max(range.min, Math.min(range.max, next)))
+        setSize(slide.id, base, Math.max(range.min, Math.min(range.max, next)))
       }
       const onUp = () => {
         window.removeEventListener('pointermove', onMove)
@@ -1031,7 +1038,7 @@ export default function App() {
             slideH={slideH}
             showPageNumber={project.chrome?.pageNumbers !== false}
             showWordmark={project.chrome?.wordmark !== false}
-            selectedElement={activeElement}
+            selectedElement={activeDragKey}
             onSelectElement={(key) => { setSelectedElement(key); if (isMobile) setSheetOpen(true) }}
             onDeselect={() => setSelectedElement(null)}
             onElementPointerDown={onElementPointerDown}

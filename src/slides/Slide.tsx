@@ -260,9 +260,17 @@ function renderType(
   onResizePointerDown: SlideProps['onResizePointerDown'],
 ) {
   const sel = { selectedElement, onSelectElement }
-  // free-layout drag/resize is content-slide only; diagrams keep their layout
   if (slide.type === 'diagram')
-    return <DiagramSlide slide={slide} p={p} assets={assets} {...sel} />
+    return (
+      <DiagramSlide
+        slide={slide}
+        p={p}
+        assets={assets}
+        {...sel}
+        onElementPointerDown={onElementPointerDown}
+        onResizePointerDown={onResizePointerDown}
+      />
+    )
   return (
     <ContentSlide
       slide={slide}
