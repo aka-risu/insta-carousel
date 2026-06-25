@@ -78,8 +78,9 @@ export interface SlideModel {
   widths?: Partial<Record<ElementKey, number>>
   /** per-element text color override; missing key = use the palette color */
   colors?: Partial<Record<ElementKey, string>>
-  /** per-element ==highlight== text color (hex or palette token); missing key =
-   *  auto-contrast against the highlight fill */
+  /** per-element color for emphasis marks (*circle* _underline_ ==highlight==),
+   *  as hex or palette token; missing key = each mark's own default (and
+   *  auto-contrast for the highlight fill) */
   hlColors?: Partial<Record<ElementKey, string>>
   /** per-element horizontal alignment override; missing key = the type default */
   aligns?: Partial<Record<ElementKey, Align>>

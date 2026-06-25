@@ -266,18 +266,19 @@ export function ElementPanel(props: ElementPanelProps) {
             )
           })()}
 
-          {/* text color for ==highlight== runs — sits beside the text color
-              control. defaults to auto-contrast so highlights are never
-              white-on-white; the swatch overrides it. */}
+          {/* text color for the emphasis marks (*circle* _underline_ ==highlight==)
+              — sits beside the text color control. auto keeps each mark's own
+              default (and keeps ==highlight== legible, never white-on-white);
+              the swatch forces one color across all marks. */}
           {(() => {
             const cur = slide.hlColors?.[key]
             return (
               <div className="size-row">
-                <span className="size-label">highlight</span>
+                <span className="size-label">marks</span>
                   <button
                     className={`size-auto ${cur == null ? 'on' : ''}`}
                     onClick={() => setHlColor(slide.id, key, undefined)}
-                    title="auto-contrast against the highlight color"
+                    title="color for *circle* _underline_ ==highlight== words; auto = each mark's default"
                   >
                     auto
                   </button>

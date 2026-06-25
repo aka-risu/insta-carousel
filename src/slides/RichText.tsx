@@ -42,9 +42,12 @@ export function RichText({
 }): ReactNode {
   if (!text) return null
   const parts = text.split(RE)
-  // resolved text color for highlighted runs: explicit override, else a color
-  // chosen to stay legible on this style's highlight fill (avoids white-on-white)
-  const hlText = hlColor ? resolveColor(hlColor, p) : readableHighlightColor(p, style)
+  // explicit override color for emphasis marks, or undefined for "auto" (each
+  // mark keeps its own default). applies to *circle* / _underline_ runs.
+  const markColor = hlColor ? resolveColor(hlColor, p) : undefined
+  // text color for ==highlight== runs: the override, else a color chosen to stay
+  // legible on this style's highlight fill (avoids white-on-white).
+  const hlText = markColor ?? readableHighlightColor(p, style)
 
   // bold style: crisp marks, no hand-drawn svg overlays
   if (style === 'bold') {
@@ -68,7 +71,7 @@ export function RichText({
       }
       if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
         return (
-          <span key={i} style={{ fontWeight: 700, color: p.fg }}>
+          <span key={i} style={{ fontWeight: 700, color: markColor ?? p.fg }}>
             {part.slice(1, -1)}
           </span>
         )
@@ -79,7 +82,7 @@ export function RichText({
             key={i}
             style={{
               fontWeight: 700,
-              color: p.fg,
+              color: markColor ?? p.fg,
               borderBottom: `0.09em solid ${p.accent}`,
               paddingBottom: '0.04em',
             }}
@@ -123,6 +126,7 @@ export function RichText({
             display: 'inline-block',
             whiteSpace: 'pre',
             padding: '0.14em 0.5em', // room so the loop clears the first/last glyph
+            color: markColor,
           }}
         >
           {part.slice(1, -1)}
@@ -154,7 +158,7 @@ export function RichText({
       return (
         <span
           key={i}
-          style={{ position: 'relative', display: 'inline-block', whiteSpace: 'pre' }}
+          style={{ position: 'relative', display: 'inline-block', whiteSpace: 'pre', color: markColor }}
         >
           {part.slice(1, -1)}
           <svg
