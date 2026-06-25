@@ -40,7 +40,7 @@ export interface ElementPanelProps {
 
 export function ElementPanel(props: ElementPanelProps) {
   const { slide, elementKey: key, theme, assets, bodyRef, updateSlide, removeElement, setSize, setWidth, setElementColor, setHlColor, setAlign, setTextBg, wrapSelection } = props
-  const def = elementDef(slide.type, key)
+  const def = elementDef(key)
 
   return (
     <div className="field">
@@ -266,14 +266,14 @@ export function ElementPanel(props: ElementPanelProps) {
             )
           })()}
 
-          {/* ==highlight== text color — overrides the auto-contrast default.
-              text-only: the body is the element that carries inline marks. */}
-          {key === 'text' &&
-            (() => {
-              const cur = slide.hlColors?.[key]
-              return (
-                <div className="size-row">
-                  <span className="size-label">highlight</span>
+          {/* text color for ==highlight== runs — sits beside the text color
+              control. defaults to auto-contrast so highlights are never
+              white-on-white; the swatch overrides it. */}
+          {(() => {
+            const cur = slide.hlColors?.[key]
+            return (
+              <div className="size-row">
+                <span className="size-label">highlight</span>
                   <button
                     className={`size-auto ${cur == null ? 'on' : ''}`}
                     onClick={() => setHlColor(slide.id, key, undefined)}

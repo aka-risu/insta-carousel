@@ -1,18 +1,15 @@
 import { useRef } from 'react'
 import type {
-  Project,
   SlideModel,
   SlideOverlay,
-  SlideType,
 } from '../model'
-import { SLIDE_TYPE_ORDER, SLIDE_TYPES, retype } from '../model'
+import { SLIDE_TYPES } from '../model'
 import type { Theme } from '../tokens'
 
 export interface SlidePanelProps {
   slide: SlideModel
   theme: Theme
   assets: Record<string, string>
-  patch: (fn: (p: Project) => Project) => void
   updateSlide: (id: string, changes: Partial<SlideModel>) => void
   setOverlay: (id: string, value: SlideOverlay | undefined) => void
   addFiles: (files: FileList | File[], onAdded?: (names: string[]) => void) => void | Promise<void>
@@ -22,7 +19,6 @@ export function SlidePanel({
   slide,
   theme,
   assets,
-  patch,
   updateSlide,
   setOverlay,
   addFiles,
@@ -35,27 +31,6 @@ export function SlidePanel({
         editing · {SLIDE_TYPES[slide.type].name}
       </label>
       <p className="type-about">{SLIDE_TYPES[slide.type].about}</p>
-
-      <div className="field">
-        <span className="field-label">slide type</span>
-        <select
-          value={slide.type}
-          onChange={(e) =>
-            patch((p) => ({
-              ...p,
-              slides: p.slides.map((s) =>
-                s.id === slide.id ? retype(s, e.target.value as SlideType) : s,
-              ),
-            }))
-          }
-        >
-          {SLIDE_TYPE_ORDER.map((t) => (
-            <option key={t} value={t}>
-              {t} — {SLIDE_TYPES[t].about}
-            </option>
-          ))}
-        </select>
-      </div>
 
       <div className="field">
         <label className="field-label" style={{ cursor: 'pointer' }}>

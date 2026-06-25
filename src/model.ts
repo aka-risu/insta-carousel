@@ -179,15 +179,9 @@ const DEFAULT_ELEMENTS: Record<SlideType, ElementKey[]> = {
   cta: ['text', 'sub'],
 }
 
-// every element any slide type may add
-export const AVAILABLE_ELEMENTS: Record<SlideType, ElementKey[]> = {
-  hook: ['stat', 'text', 'sub', 'image', 'def', 'attribution'],
-  text: ['stat', 'text', 'sub', 'image', 'def', 'attribution'],
-  fact: ['stat', 'text', 'sub', 'image', 'def', 'attribution'],
-  quote: ['stat', 'text', 'sub', 'image', 'def', 'attribution'],
-  diagram: ['image', 'annotations', 'text', 'sub', 'def', 'attribution'],
-  cta: ['stat', 'text', 'sub', 'image', 'def', 'attribution'],
-}
+// every element is addable on every slide, in canonical order — the slide type
+// is only a creation preset, not an editing constraint
+export const ADDABLE_ELEMENTS: ElementKey[] = ELEMENT_ORDER
 
 // ── element definitions (what to put where) ──────────────────
 
@@ -216,31 +210,10 @@ const ELEMENT_DEFS: Record<ElementKey, ElementDef> = {
   attribution: { label: 'attribution', hint: 'who said it. no dash needed' },
 }
 
-// per-type wording overrides so each editor still explains itself
-const ELEMENT_OVERRIDES: Partial<
-  Record<SlideType, Partial<Record<ElementKey, Partial<ElementDef>>>>
-> = {
-  hook: {
-    text: { label: 'headline', hint: 'short and bold. line breaks are respected' },
-    sub: { label: 'kicker', hint: 'mono line under the headline. empty = “keep reading →”' },
-  },
-  fact: {
-    text: { label: 'body', hint: 'the explanation under the figure' },
-  },
-  quote: {
-    text: { label: 'quote', hint: 'italic, centered' },
-  },
-  diagram: {
-    text: { label: 'caption', hint: 'mono caption under the plate' },
-  },
-  cta: {
-    text: { label: 'main line', hint: 'the ask' },
-    sub: { label: 'sign-off', hint: 'small mono lines, e.g. antara freediving · koh tao' },
-  },
-}
-
-export function elementDef(type: SlideType, key: ElementKey): ElementDef {
-  return { ...ELEMENT_DEFS[key], ...ELEMENT_OVERRIDES[type]?.[key] }
+// one canonical definition per element — the same on every slide type, so the
+// editor reads consistently no matter which preset a slide was created from
+export function elementDef(key: ElementKey): ElementDef {
+  return ELEMENT_DEFS[key]
 }
 
 // ── slide construction ───────────────────────────────────────
@@ -294,13 +267,6 @@ export function ensureElements(s: SlideModel): SlideModel {
   void _t
   void _u
   return { ...rest, sizes, elements }
-}
-
-/** change a slide's type, refreshing defaults but keeping populated content */
-export function retype(s: SlideModel, type: SlideType): SlideModel {
-  const next = { ...s, type, elements: [...DEFAULT_ELEMENTS[type]] }
-  next.elements = withPopulated(next)
-  return next
 }
 
 // ── chrome micro-labels ──────────────────────────────────────

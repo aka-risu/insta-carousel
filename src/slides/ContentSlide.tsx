@@ -248,6 +248,36 @@ export function ContentSlide({
             {hlWrap(slide, 'attribution', p, <>— {slide.attribution}</>)}
           </div>
         )
+      case 'annotations': {
+        // outside a diagram there's no plate to pin callouts to, so render the
+        // lines as a simple stacked italic list honoring the element's controls
+        const lines = slide.annotations.split('\n').filter((l) => l.trim() !== '')
+        if (lines.length === 0) return null
+        return (
+          <div
+            key="annotations"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              fontFamily: bold ? fonts.sans : undefined,
+              fontStyle: bold ? 'normal' : 'italic',
+              fontWeight: 500,
+              fontSize: sizeFor(slide, 'annotations'),
+              lineHeight: 1.3,
+              textTransform: bold ? 'uppercase' : undefined,
+              maxWidth: widthFor(slide, 'annotations'),
+              color: colorFor('annotations', p.dim),
+              alignSelf: ac.alignSelf,
+              textAlign: ac.textAlign,
+            }}
+          >
+            {lines.map((l, i) => (
+              <div key={i}>{l}</div>
+            ))}
+          </div>
+        )
+      }
       default:
         return null
     }

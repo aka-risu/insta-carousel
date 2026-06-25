@@ -127,13 +127,21 @@ export function DiagramSlide({
     </div>
   )
 
-  // caption block (text / sub / def / attribution) — mono; each element honors
-  // its own align (defaults to centered, the diagram type default)
-  const captionNode = (key: 'text' | 'sub' | 'def' | 'attribution'): ReactNode => {
+  // caption block (stat / text / sub / def / attribution) — mono; each element
+  // honors its own align (defaults to centered, the diagram type default)
+  const captionNode = (key: 'stat' | 'text' | 'sub' | 'def' | 'attribution'): ReactNode => {
     if (!has(key) || !slide[key]) return null
     const align = alignFor(slide, key)
     const ac = alignCss(align)
     const styleByKey: Record<typeof key, CSSProperties> = {
+      stat: {
+        fontWeight: 600,
+        fontSize: sizeFor(slide, 'stat'),
+        lineHeight: 1,
+        letterSpacing: '-0.02em',
+        maxWidth: widthFor(slide, 'stat'),
+        color: colorFor('stat', p.fg),
+      },
       text: {
         fontFamily: fonts.mono,
         fontWeight: 500,
@@ -186,7 +194,8 @@ export function DiagramSlide({
     )
   }
 
-  const captionKeys: ('text' | 'sub' | 'def' | 'attribution')[] = [
+  const captionKeys: ('stat' | 'text' | 'sub' | 'def' | 'attribution')[] = [
+    'stat',
     'text',
     'sub',
     'def',

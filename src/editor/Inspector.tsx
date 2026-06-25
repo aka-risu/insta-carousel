@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Project, ProjectChrome, SlideModel, ElementKey, SlideOverlay, TextBacking, Align } from '../model'
-import { AVAILABLE_ELEMENTS, elementDef } from '../model'
+import { ADDABLE_ELEMENTS, elementDef } from '../model'
 import type { Theme, CustomThemeData, ColorOverrides } from '../tokens'
 import { CarouselPanel } from './CarouselPanel'
 import { SlidePanel } from './SlidePanel'
@@ -32,7 +32,6 @@ export interface InspectorProps {
   clearUnusedImages: () => number
 
   // slide-level (SlidePanel)
-  patch: (fn: (p: Project) => Project) => void
   updateSlide: (id: string, changes: Partial<SlideModel>) => void
   setOverlay: (id: string, value: SlideOverlay | undefined) => void
 
@@ -88,7 +87,6 @@ export function Inspector(props: InspectorProps) {
     addFiles,
     removeAsset,
     clearUnusedImages,
-    patch,
     updateSlide,
     setOverlay,
     layoutClip,
@@ -169,7 +167,6 @@ export function Inspector(props: InspectorProps) {
               slide={selected}
               theme={theme}
               assets={assets}
-              patch={patch}
               updateSlide={updateSlide}
               setOverlay={setOverlay}
               addFiles={addFiles}
@@ -187,13 +184,13 @@ export function Inspector(props: InspectorProps) {
                         className="element-row"
                         title={
                           empty
-                            ? `${elementDef(selected.type, k).label} — empty; select to add text`
-                            : elementDef(selected.type, k).hint
+                            ? `${elementDef(k).label} — empty; select to add text`
+                            : elementDef(k).hint
                         }
                         onClick={() => selectElement(k)}
                       >
                         <span className="element-row-label">
-                          {elementDef(selected.type, k).label}
+                          {elementDef(k).label}
                         </span>
                         {empty && <span className="element-row-empty">empty</span>}
                       </button>
@@ -255,21 +252,21 @@ export function Inspector(props: InspectorProps) {
               </span>
             </div>
 
-            {AVAILABLE_ELEMENTS[selected.type].filter((k) => !selected.elements.includes(k))
+            {ADDABLE_ELEMENTS.filter((k) => !selected.elements.includes(k))
               .length > 0 && (
               <div className="field">
                 <span className="field-label">add element</span>
                 <div className="add-row">
-                  {AVAILABLE_ELEMENTS[selected.type]
+                  {ADDABLE_ELEMENTS
                     .filter((k) => !selected.elements.includes(k))
                     .map((k) => (
                       <button
                         key={k}
                         className="add-chip"
-                        title={elementDef(selected.type, k).hint}
+                        title={elementDef(k).hint}
                         onClick={() => addElement(selected.id, k)}
                       >
-                        + {elementDef(selected.type, k).label}
+                        + {elementDef(k).label}
                       </button>
                     ))}
                 </div>

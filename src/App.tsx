@@ -1305,7 +1305,6 @@ export default function App() {
             addFiles={addFiles}
             removeAsset={removeAsset}
             clearUnusedImages={clearUnusedImages}
-            patch={patch}
             updateSlide={updateSlide}
             setOverlay={setOverlay}
             layoutClip={layoutClip}
