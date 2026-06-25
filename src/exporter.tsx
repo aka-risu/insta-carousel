@@ -10,13 +10,21 @@ import { Slide } from './slides/Slide'
 
 // renders every slide offscreen at natural 1080×1350 (no transform — scaled
 // nodes export blurry), rasterizes each to png, zips with caption.txt.
+//
+// `only` (a slide index) exports just that one slide as a standalone png — but
+// it's still rendered inside the full deck, so its page number, micro-label and
+// index/total read exactly as they do in the full export.
 export async function exportCarousel(
   project: Project,
   assets: Record<string, string>,
   onProgress: (done: number, total: number) => void,
+  only?: number,
 ): Promise<void> {
   const total = project.slides.length
   if (total === 0) throw new Error('nothing to export — add at least one slide')
+  if (only != null && (only < 0 || only >= total)) {
+    throw new Error('slide to export is out of range')
+  }
 
   const theme = themeById(project.themeId)
   const labels = microLabels(project, theme)
@@ -68,20 +76,31 @@ export async function exportCarousel(
     await waitForImages(container)
     await nextFrame()
 
-    const nodes = Array.from(container.querySelectorAll<HTMLElement>('[data-slide]'))
+    const allNodes = Array.from(container.querySelectorAll<HTMLElement>('[data-slide]'))
 
     // compute the @font-face embed css once instead of per-slide — this is
     // what keeps a 10-slide export well under 15s
-    const fontCss = await getFontEmbedCSS(nodes[0])
+    const fontCss = await getFontEmbedCSS(allNodes[0])
 
-    const zip = new JSZip()
-    for (let i = 0; i < nodes.length; i++) {
-      const dataUrl = await toPng(nodes[i], {
+    const render = (node: HTMLElement) =>
+      toPng(node, {
         width: layout.slideW,
         height: slideH,
         pixelRatio: 1,
         fontEmbedCSS: fontCss,
       })
+
+    // single-slide export: one png, no zip
+    if (only != null) {
+      const dataUrl = await render(allNodes[only])
+      onProgress(1, 1)
+      saveAs(dataUrl, `antara-slide-${String(only + 1).padStart(2, '0')}.png`)
+      return
+    }
+
+    const zip = new JSZip()
+    for (let i = 0; i < allNodes.length; i++) {
+      const dataUrl = await render(allNodes[i])
       zip.file(`${String(i + 1).padStart(2, '0')}.png`, dataUrl.split(',')[1], {
         base64: true,
       })

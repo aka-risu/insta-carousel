@@ -56,8 +56,9 @@ export function Slide({
   const p: Palette = slide.type === 'cta' ? theme.inverted : theme.base
   const style = themeStyle(theme)
   const bold = style === 'bold'
-  // a per-slide eyebrow overrides the auto micro-label, in any theme
-  const labelText = slide.eyebrow?.trim() || microLabel
+  // a per-slide eyebrow overrides the auto micro-label, in any theme; the
+  // per-slide switch hides it entirely regardless of custom/auto text
+  const labelText = slide.eyebrowOff ? '' : slide.eyebrow?.trim() || microLabel
 
   // background image: a per-slide image (any theme) wins; otherwise fall back to
   // an image-backed theme's plate (manual override, else cycle by position)

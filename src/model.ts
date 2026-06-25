@@ -70,6 +70,8 @@ export interface SlideModel {
   annotations: string // one per line
   /** short kicker shown in the chrome label box; empty = the auto micro-label */
   eyebrow?: string
+  /** hide the eyebrow/label on this slide entirely; undefined = shown (default) */
+  eyebrowOff?: boolean
   /** manual px size per element; missing key = use that element's auto size */
   sizes?: Partial<Record<ElementKey, number>>
   /** manual px max-width per element; missing key = use that element's auto width */
@@ -410,14 +412,14 @@ export const WIDTH_RANGE = { min: 200, max: 1000, step: 10 } as const
 
 // default horizontal alignment per slide type — the single source the renderer
 // preset and the editor both read, so an "auto" element matches what's drawn.
-// diagram has its own fixed layout; the value is unused there.
+// diagram's caption stack is centered, so its default is 'center'.
 export const SLIDE_ALIGN: Record<SlideType, Align> = {
   hook: 'left',
   text: 'left',
   fact: 'left',
   quote: 'center',
   cta: 'center',
-  diagram: 'left',
+  diagram: 'center',
 }
 
 export function defaultAlign(type: SlideType): Align {
@@ -482,6 +484,7 @@ export function slideFromJSON(d: Record<string, unknown>): SlideModel {
   const s = newSlide(SLIDE_TYPE_ORDER.includes(t) ? t : 'text')
   for (const k of CONTENT_KEYS) if (typeof d[k] === 'string') s[k] = d[k] as string
   if (typeof d.eyebrow === 'string') s.eyebrow = d.eyebrow
+  if (d.eyebrowOff === true) s.eyebrowOff = true
 
   if (Array.isArray(d.elements)) {
     s.elements = (d.elements as string[]).filter((k): k is ElementKey =>
@@ -733,6 +736,7 @@ export function slideToJSON(s: SlideModel): Record<string, unknown> {
   const out: Record<string, unknown> = { type: s.type, elements: s.elements }
   for (const k of CONTENT_KEYS) if (s[k]) out[k] = s[k]
   if (s.eyebrow) out.eyebrow = s.eyebrow
+  if (s.eyebrowOff) out.eyebrowOff = true
   if (s.sizes && Object.keys(s.sizes).length) out.sizes = s.sizes
   if (s.widths && Object.keys(s.widths).length) out.widths = s.widths
   if (s.colors && Object.keys(s.colors).length) out.colors = s.colors

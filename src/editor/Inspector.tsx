@@ -39,6 +39,9 @@ export interface InspectorProps {
   // layout controls (passed through to slide-tab / no-element branch in App)
   layoutClip: SlideModel['positions'] | null
   resetLayout: (id: string) => void
+  // revert the selected slide to its last imported/saved version
+  resetSlide: (id: string) => void
+  canResetSlide: boolean
   copyLayout: () => void
   pasteLayout: (id: string) => void
   applyLayoutToAll: () => void
@@ -89,6 +92,8 @@ export function Inspector(props: InspectorProps) {
     setOverlay,
     layoutClip,
     resetLayout,
+    resetSlide,
+    canResetSlide,
     copyLayout,
     pasteLayout,
     applyLayoutToAll,
@@ -267,6 +272,20 @@ export function Inspector(props: InspectorProps) {
                 </div>
               </div>
             )}
+
+            <div className="field">
+              <button
+                className="ghost-btn"
+                onClick={() => resetSlide(selected.id)}
+                disabled={!canResetSlide}
+                title="discard this slide's changes since the last import/save"
+              >
+                reset slide
+              </button>
+              <span className="field-hint">
+                revert just this slide to its last imported or saved version.
+              </span>
+            </div>
           </>
         )
       ) : (

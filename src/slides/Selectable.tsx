@@ -49,8 +49,13 @@ export function Selectable({
   const interactive = !!onSelectElement
 
   // free elements are absolutely placed; auto elements flow in the flex column
+  // free: `max-content` (not `fit-content`) so the box sizes to the text's own
+  // width and wraps ONLY where the content does (explicit newlines or a pinned
+  // maxWidth). `fit-content` would clamp the box to the gap between the element
+  // and the canvas's right edge, so a line sitting at that boundary soft-wraps
+  // differently between the live preview and the embedded-font export raster.
   const layoutStyle: CSSProperties = free
-    ? { position: 'absolute', left: pos?.x ?? 0, top: pos?.y ?? 0, width: 'fit-content' }
+    ? { position: 'absolute', left: pos?.x ?? 0, top: pos?.y ?? 0, width: 'max-content' }
     : {
         width: stretch || align === 'spread' ? '100%' : 'fit-content',
         maxWidth: '100%',

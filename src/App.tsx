@@ -1015,6 +1015,19 @@ export default function App() {
     }
   }, [project, assets])
 
+  const handleExportSlide = useCallback(async () => {
+    const only = project.slides.findIndex((s) => s.id === selectedId)
+    if (only < 0) return
+    setExporting('preparing…')
+    try {
+      await exportCarousel(project, assets, () => setExporting(`rendering slide ${only + 1}`), only)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err))
+    } finally {
+      setExporting(null)
+    }
+  }, [project, assets, selectedId])
+
   // ── saved designs library ──────────────────────────────────
   const flashSaved = useCallback(() => {
     setSavedFlash(true)
@@ -1117,6 +1130,28 @@ export default function App() {
     setSelectedElement(null)
   }, [baseline, canReset])
 
+  // per-slide reset: revert just the selected slide to its baseline snapshot.
+  // available only when baseline holds a slide with this id and it has changed.
+  const baselineSlide = useMemo(
+    () => (selectedId ? baseline.slides.find((s) => s.id === selectedId) ?? null : null),
+    [baseline, selectedId],
+  )
+  const canResetSlide = useMemo(
+    () => !!baselineSlide && !!selected && JSON.stringify(selected) !== JSON.stringify(baselineSlide),
+    [baselineSlide, selected],
+  )
+  const resetSlide = useCallback(
+    (id: string) => {
+      const orig = baseline.slides.find((s) => s.id === id)
+      if (!orig) return
+      if (!window.confirm('Discard this slide’s changes since the last import/save?')) return
+      const clone = JSON.parse(JSON.stringify(orig)) as SlideModel
+      patch((p) => ({ ...p, slides: p.slides.map((s) => (s.id === id ? clone : s)) }))
+      setSelectedElement(null)
+    },
+    [baseline, patch],
+  )
+
   const currentName = designs.find((d) => d.id === currentDesignId)?.name ?? null
 
   return (
@@ -1153,6 +1188,14 @@ export default function App() {
             </option>
           ))}
         </select>
+        <button
+          className="export-btn"
+          onClick={handleExportSlide}
+          disabled={exporting !== null || !selectedId}
+          title="export only the selected slide as a single png"
+        >
+          export slide
+        </button>
         <button
           className="export-btn"
           onClick={handleExport}
@@ -1251,6 +1294,8 @@ export default function App() {
             setOverlay={setOverlay}
             layoutClip={layoutClip}
             resetLayout={resetLayout}
+            resetSlide={resetSlide}
+            canResetSlide={canResetSlide}
             copyLayout={copyLayout}
             pasteLayout={pasteLayout}
             applyLayoutToAll={applyLayoutToAll}
