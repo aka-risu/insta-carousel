@@ -415,6 +415,22 @@ export default function App() {
     [patch],
   )
 
+  // set (or clear → auto-contrast) the ==highlight== text color for an element
+  const setHlColor = useCallback(
+    (id: string, key: ElementKey, value: string | undefined) =>
+      patch((p) => ({
+        ...p,
+        slides: p.slides.map((s) => {
+          if (s.id !== id) return s
+          const hlColors = { ...(s.hlColors ?? {}) }
+          if (value == null) delete hlColors[key]
+          else hlColors[key] = value
+          return { ...s, hlColors }
+        }),
+      })),
+    [patch],
+  )
+
   // set (or clear, when value is undefined → type default) an element's align
   const setAlign = useCallback(
     (id: string, key: ElementKey, value: Align | undefined) =>
@@ -1304,6 +1320,7 @@ export default function App() {
             setSize={setSize}
             setWidth={setWidth}
             setElementColor={setElementColor}
+            setHlColor={setHlColor}
             setAlign={setAlign}
             setTextBg={setTextBg}
             wrapSelection={wrapSelection}

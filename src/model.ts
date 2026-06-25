@@ -78,6 +78,9 @@ export interface SlideModel {
   widths?: Partial<Record<ElementKey, number>>
   /** per-element text color override; missing key = use the palette color */
   colors?: Partial<Record<ElementKey, string>>
+  /** per-element ==highlight== text color (hex or palette token); missing key =
+   *  auto-contrast against the highlight fill */
+  hlColors?: Partial<Record<ElementKey, string>>
   /** per-element horizontal alignment override; missing key = the type default */
   aligns?: Partial<Record<ElementKey, Align>>
   /** how the image element is placed; undefined = 'inline' (boxed plate) */
@@ -513,6 +516,12 @@ export function slideFromJSON(d: Record<string, unknown>): SlideModel {
       if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'string')
         s.colors[k as ElementKey] = v
   }
+  if (d.hlColors && typeof d.hlColors === 'object') {
+    s.hlColors = {}
+    for (const [k, v] of Object.entries(d.hlColors as Record<string, unknown>))
+      if (ELEMENT_ORDER.includes(k as ElementKey) && typeof v === 'string')
+        s.hlColors[k as ElementKey] = v
+  }
   if (d.aligns && typeof d.aligns === 'object') {
     s.aligns = {}
     const ok: Align[] = ['left', 'center', 'right', 'spread']
@@ -740,6 +749,7 @@ export function slideToJSON(s: SlideModel): Record<string, unknown> {
   if (s.sizes && Object.keys(s.sizes).length) out.sizes = s.sizes
   if (s.widths && Object.keys(s.widths).length) out.widths = s.widths
   if (s.colors && Object.keys(s.colors).length) out.colors = s.colors
+  if (s.hlColors && Object.keys(s.hlColors).length) out.hlColors = s.hlColors
   if (s.aligns && Object.keys(s.aligns).length) out.aligns = s.aligns
   if (s.imageMode) out.imageMode = s.imageMode
   if (typeof s.imageFrac === 'number') out.imageFrac = s.imageFrac

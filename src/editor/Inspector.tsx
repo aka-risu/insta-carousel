@@ -52,6 +52,7 @@ export interface InspectorProps {
   setSize: (id: string, key: ElementKey, value: number | undefined) => void
   setWidth: (id: string, key: ElementKey, value: number | undefined) => void
   setElementColor: (id: string, key: ElementKey, value: string | undefined) => void
+  setHlColor: (id: string, key: ElementKey, value: string | undefined) => void
   setAlign: (id: string, key: ElementKey, value: Align | undefined) => void
   setTextBg: (id: string, key: ElementKey, value: TextBacking | undefined) => void
   wrapSelection: (open: string, close: string) => void
@@ -102,6 +103,7 @@ export function Inspector(props: InspectorProps) {
     setSize,
     setWidth,
     setElementColor,
+    setHlColor,
     setAlign,
     setTextBg,
     wrapSelection,
@@ -155,6 +157,7 @@ export function Inspector(props: InspectorProps) {
             setSize={setSize}
             setWidth={setWidth}
             setElementColor={setElementColor}
+            setHlColor={setHlColor}
             setAlign={setAlign}
             setTextBg={setTextBg}
             wrapSelection={wrapSelection}

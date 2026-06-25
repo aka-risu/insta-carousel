@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Palette, ThemeStyle } from '../tokens'
+import { readableHighlightColor, resolveColor } from '../tokens'
 
 // inline emphasis marks for body text. the same markup renders two ways:
 //
@@ -30,13 +31,20 @@ export function RichText({
   text,
   p,
   style = 'editorial',
+  hlColor,
 }: {
   text: string
   p: Palette
   style?: ThemeStyle
+  /** text color for ==highlight== spans (hex or palette token); undefined =
+   *  auto-contrast against the highlight fill */
+  hlColor?: string
 }): ReactNode {
   if (!text) return null
   const parts = text.split(RE)
+  // resolved text color for highlighted runs: explicit override, else a color
+  // chosen to stay legible on this style's highlight fill (avoids white-on-white)
+  const hlText = hlColor ? resolveColor(hlColor, p) : readableHighlightColor(p, style)
 
   // bold style: crisp marks, no hand-drawn svg overlays
   if (style === 'bold') {
@@ -47,7 +55,7 @@ export function RichText({
             key={i}
             style={{
               background: p.accent,
-              color: p.bg,
+              color: hlText,
               fontWeight: 700,
               padding: '0.02em 0.16em',
               boxDecorationBreak: 'clone',
@@ -91,6 +99,7 @@ export function RichText({
           key={i}
           style={{
             background: `color-mix(in srgb, ${p.accent} 46%, transparent)`,
+            color: hlText,
             padding: '0.02em 0.12em',
             borderRadius: 3,
             boxDecorationBreak: 'clone',

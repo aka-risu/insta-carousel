@@ -97,7 +97,7 @@ export function ContentSlide({
               textAlign: ac.textAlign,
             }}
           >
-            {hlWrap(slide, 'text', p, <RichText text={slide.text} p={p} style={style} />)}
+            {hlWrap(slide, 'text', p, <RichText text={slide.text} p={p} style={style} hlColor={slide.hlColors?.text} />)}
           </div>
         )
       case 'sub':
@@ -149,14 +149,14 @@ export function ContentSlide({
               type === 'hook' ? (
                 <>
                   {bold ? (
-                    <RichText text={slide.sub || 'keep reading'} p={p} style={style} />
+                    <RichText text={slide.sub || 'keep reading'} p={p} style={style} hlColor={slide.hlColors?.sub} />
                   ) : (
                     slide.sub || 'keep reading'
                   )}
                   &nbsp;&nbsp;→
                 </>
               ) : bold ? (
-                <RichText text={slide.sub} p={p} style={style} />
+                <RichText text={slide.sub} p={p} style={style} hlColor={slide.hlColors?.sub} />
               ) : (
                 slide.sub
               ),
@@ -225,7 +225,7 @@ export function ContentSlide({
               textAlign: ac.textAlign,
             }}
           >
-            {hlWrap(slide, 'def', p, bold ? <RichText text={slide.def} p={p} style={style} /> : slide.def)}
+            {hlWrap(slide, 'def', p, bold ? <RichText text={slide.def} p={p} style={style} hlColor={slide.hlColors?.def} /> : slide.def)}
           </div>
         )
       case 'attribution':

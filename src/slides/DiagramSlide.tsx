@@ -1,9 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { DragKey, ElementKey, SlideModel } from '../model'
-import { sizeFor, widthFor, DEFAULT_FREE_POS } from '../model'
+import { sizeFor, widthFor, alignFor, DEFAULT_FREE_POS } from '../model'
 import type { Palette, ThemeStyle } from '../tokens'
 import { fonts } from '../tokens'
 import { RichText } from './RichText'
+import { alignCss } from './align'
 import { blockPlate, hlWrap } from './TextPlate'
 import { Selectable } from './Selectable'
 import type { ElementSelection } from './Selectable'
@@ -126,9 +127,12 @@ export function DiagramSlide({
     </div>
   )
 
-  // caption block (text / sub / def / attribution) — mono, centered
+  // caption block (text / sub / def / attribution) — mono; each element honors
+  // its own align (defaults to centered, the diagram type default)
   const captionNode = (key: 'text' | 'sub' | 'def' | 'attribution'): ReactNode => {
     if (!has(key) || !slide[key]) return null
+    const align = alignFor(slide, key)
+    const ac = alignCss(align)
     const styleByKey: Record<typeof key, CSSProperties> = {
       text: {
         fontFamily: fonts.mono,
@@ -170,13 +174,15 @@ export function DiagramSlide({
       key === 'attribution' ? (
         <>— {slide.attribution}</>
       ) : (
-        <RichText text={slide[key] as string} p={p} style={style} />
+        <RichText text={slide[key] as string} p={p} style={style} hlColor={slide.hlColors?.[key]} />
       )
     return blockPlate(
       slide.textBg?.[key],
       p,
-      'center',
-      <div style={styleByKey[key]}>{hlWrap(slide, key, p, inner)}</div>,
+      align,
+      <div style={{ ...styleByKey[key], textAlign: ac.textAlign }}>
+        {hlWrap(slide, key, p, inner)}
+      </div>,
     )
   }
 
@@ -263,7 +269,7 @@ export function DiagramSlide({
           const node = captionNode(key)
           if (!node) return null
           return (
-            <Selectable key={key} el={key} free pos={posOf(key)} {...sel} {...drag}>
+            <Selectable key={key} el={key} align={alignFor(slide, key)} free pos={posOf(key)} {...sel} {...drag}>
               {node}
             </Selectable>
           )
@@ -392,7 +398,7 @@ export function DiagramSlide({
           const node = captionNode(key)
           if (!node) return null
           return (
-            <Selectable key={key} el={key} align="center" {...sel} {...drag}>
+            <Selectable key={key} el={key} align={alignFor(slide, key)} {...sel} {...drag}>
               {node}
             </Selectable>
           )

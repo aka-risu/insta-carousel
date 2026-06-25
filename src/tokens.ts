@@ -111,6 +111,49 @@ export function resolveColor(color: string, p: Palette, opacity = 1): string {
   return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, opacity))})`
 }
 
+// ── readable text over a colored highlight ───────────────────
+// parse #rgb / #rrggbb to [r,g,b]; null for tokens or malformed input
+function hexRgb(hex: string): [number, number, number] | null {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex)
+  if (!m) return null
+  let h = m[1]
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+}
+
+// perceptual luminance 0..1 (sRGB-weighted); 0.5 fallback for non-hex colors
+function luminance(hex: string): number {
+  const rgb = hexRgb(hex)
+  if (!rgb) return 0.5
+  const [r, g, b] = rgb
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+}
+
+// blend `amt` (0..1) of color `a` over `b`; both must be hex (else `a` is returned)
+function blendHex(a: string, b: string, amt: number): string {
+  const ca = hexRgb(a)
+  const cb = hexRgb(b)
+  if (!ca || !cb) return a
+  const mix = ca.map((v, i) => Math.round(v * amt + cb[i] * (1 - amt)))
+  return `#${mix.map((v) => v.toString(16).padStart(2, '0')).join('')}`
+}
+
+// pick whichever of fg / bg reads better on `fill` — the option whose luminance
+// sits furthest from the fill's.
+function pickReadable(fill: string, p: Palette): string {
+  const lf = luminance(fill)
+  return Math.abs(luminance(p.fg) - lf) >= Math.abs(luminance(p.bg) - lf) ? p.fg : p.bg
+}
+
+// the auto (un-overridden) text color for an inline highlight, chosen to stay
+// legible against that style's highlight fill. bold paints a solid accent; the
+// editorial sweep is a translucent accent over the paper, so contrast is judged
+// against the blended result.
+export function readableHighlightColor(p: Palette, style: ThemeStyle): string {
+  const fill = style === 'bold' ? p.accent : blendHex(p.accent, p.bg, 0.46)
+  return pickReadable(fill, p)
+}
+
 // a full-bleed background plate (vintage sea chart) for image-backed themes
 export interface ChartBg {
   id: string

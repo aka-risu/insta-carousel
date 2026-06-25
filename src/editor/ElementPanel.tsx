@@ -31,6 +31,7 @@ export interface ElementPanelProps {
   setSize: (id: string, key: ElementKey, value: number | undefined) => void
   setWidth: (id: string, key: ElementKey, value: number | undefined) => void
   setElementColor: (id: string, key: ElementKey, value: string | undefined) => void
+  setHlColor: (id: string, key: ElementKey, value: string | undefined) => void
   setAlign: (id: string, key: ElementKey, value: Align | undefined) => void
   setTextBg: (id: string, key: ElementKey, value: TextBacking | undefined) => void
   wrapSelection: (open: string, close: string) => void
@@ -38,7 +39,7 @@ export interface ElementPanelProps {
 }
 
 export function ElementPanel(props: ElementPanelProps) {
-  const { slide, elementKey: key, theme, assets, bodyRef, updateSlide, removeElement, setSize, setWidth, setElementColor, setAlign, setTextBg, wrapSelection } = props
+  const { slide, elementKey: key, theme, assets, bodyRef, updateSlide, removeElement, setSize, setWidth, setElementColor, setHlColor, setAlign, setTextBg, wrapSelection } = props
   const def = elementDef(slide.type, key)
 
   return (
@@ -160,10 +161,10 @@ export function ElementPanel(props: ElementPanelProps) {
           )
         })()}
 
-      {/* horizontal alignment — overrides the slide type's default.
-          hidden for images (nothing to align) and diagrams (fixed layout) */}
+      {/* horizontal alignment — overrides the slide type's default. hidden for
+          images (nothing to align) and annotations (their own alternating layout) */}
       {key !== 'image' &&
-        slide.type !== 'diagram' &&
+        key !== 'annotations' &&
         (() => {
           const cur = slide.aligns?.[key]
           const effective = alignFor(slide, key)
@@ -264,6 +265,31 @@ export function ElementPanel(props: ElementPanelProps) {
               </div>
             )
           })()}
+
+          {/* ==highlight== text color — overrides the auto-contrast default.
+              text-only: the body is the element that carries inline marks. */}
+          {key === 'text' &&
+            (() => {
+              const cur = slide.hlColors?.[key]
+              return (
+                <div className="size-row">
+                  <span className="size-label">highlight</span>
+                  <button
+                    className={`size-auto ${cur == null ? 'on' : ''}`}
+                    onClick={() => setHlColor(slide.id, key, undefined)}
+                    title="auto-contrast against the highlight color"
+                  >
+                    auto
+                  </button>
+                  <input
+                    type="color"
+                    value={cur || theme.base.bg}
+                    onChange={(e) => setHlColor(slide.id, key, e.target.value)}
+                  />
+                  <span className="size-val">{cur ?? 'auto'}</span>
+                </div>
+              )
+            })()}
 
           {/* per-element text backing plate — legibility on busy images */}
           {(() => {
